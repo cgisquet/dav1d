@@ -80,6 +80,13 @@ static int adjust_strength(const int strength, const unsigned var) {
     return (strength * (4 + i) + 8) >> 4;
 }
 
+#if 0 && BITDEPTH == 8
+uint64_t cdef_occ[3][3] = { {0,}, {0,}, {0,}, };
+# define INC(i,p,s) cdef_occ[i][2*(!!p)+(!!s)]++
+#else
+# define INC(i,p,s)
+#endif
+
 void bytefn(dav1d_cdef_brow)(Dav1dFrameContext *const f,
                              pixel *const p[3],
                              const Av1Filter *const lflvl,
@@ -171,13 +178,14 @@ void bytefn(dav1d_cdef_brow)(Dav1dFrameContext *const f,
                 const int dir = dsp->cdef.dir(bptrs[0], f->cur.stride[0],
                                               &variance HIGHBD_CALL_SUFFIX);
                 if (y_lvl) {
+                    int adj_lvl = adjust_strength(y_pri_lvl, variance);
+                    INC(0,adj_lvl,y_sec_lvl);
                     dsp->cdef.fb[0](bptrs[0], f->cur.stride[0], lr_bak[bit][0],
                                     (pixel *const [2]) {
                                         &f->lf.cdef_line_ptr[tf][0][0][bx * 4],
                                         &f->lf.cdef_line_ptr[tf][0][1][bx * 4],
                                     },
-                                    adjust_strength(y_pri_lvl, variance),
-                                    y_sec_lvl, y_pri_lvl ? dir : 0,
+                                    adj_lvl, y_sec_lvl, y_pri_lvl ? dir : 0,
                                     damping, edges HIGHBD_CALL_SUFFIX);
                 }
                 if (uv_lvl && has_chroma) {
@@ -185,6 +193,7 @@ void bytefn(dav1d_cdef_brow)(Dav1dFrameContext *const f,
                         f->cur.p.layout != DAV1D_PIXEL_LAYOUT_I422 ? dir :
                         ((uint8_t[]) { 7, 0, 2, 4, 5, 6, 6, 6 })[dir];
                     for (int pl = 1; pl <= 2; pl++) {
+                        INC(uv_idx,uv_pri_lvl, uv_sec_lvl);
                         dsp->cdef.fb[uv_idx](bptrs[pl], f->cur.stride[1],
                                              lr_bak[bit][pl],
                                              (pixel *const [2]) {

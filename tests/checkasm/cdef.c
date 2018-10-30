@@ -38,7 +38,7 @@ static void init_tmp(pixel *buf, int n, const int bitdepth_max) {
 }
 
 static void check_cdef_filter(const cdef_fn fn, const int w, const int h,
-                              const char *const name)
+                              const char *const name, int type)
 {
     ALIGN_STK_32(pixel, src, 10 * 16 + 8, );
     ALIGN_STK_32(pixel, c_src, 10 * 16 + 8, ), *const c_src_ptr = c_src + 8;
@@ -120,7 +120,6 @@ void bitfn(checkasm_check_cdef)(void) {
     bitfn(dav1d_cdef_dsp_init)(&c);
 
     check_cdef_direction(c.dir);
-    check_cdef_filter(c.fb[0], 8, 8, "cdef_filter_8x8");
-    check_cdef_filter(c.fb[1], 4, 8, "cdef_filter_4x8");
-    check_cdef_filter(c.fb[2], 4, 4, "cdef_filter_4x4");
+    check_cdef_filter(c.fb[0], 8, 8, "cdef_filter_8x8", 0);
+    check_cdef_filter(c.fb[2], 4, 4, "cdef_filter_4x4", 0);
 }

@@ -295,5 +295,14 @@ int main(const int argc, char *const *const argv) {
     }
     dav1d_close(&c);
 
+#if 0
+    fflush(stdout);
+    fflush(stderr);
+    extern uint64_t cdef_occ[3][3];
+    printf("\n");
+    for (int i=0; i<3; i++)
+      printf("%i: %lli %lli %lli\n",i, cdef_occ[i][0], cdef_occ[i][1], cdef_occ[i][2]);
+#endif
+
     return res;
 }
