@@ -609,20 +609,21 @@ static inline int get_dc_sign_ctx(const TxfmInfo *const t_dim,
     return s < 0 ? 1 : s > 0 ? 2 : 0;
 }
 
-static inline int get_br_ctx(const uint8_t *const levels,
+static inline int get_br_ctx(const uint8_t* levels,
                              const int ac, const enum TxClass tx_class,
                              const int x, const int y,
                              const ptrdiff_t stride)
 {
-    int mag = 0;
-    static const uint8_t offsets_from_txclass[3][3][2] = {
-        [TX_CLASS_2D] = { { 0, 1 }, { 1, 0 }, { 1, 1 } },
-        [TX_CLASS_H]  = { { 0, 1 }, { 1, 0 }, { 0, 2 } },
-        [TX_CLASS_V]  = { { 0, 1 }, { 1, 0 }, { 2, 0 } }
+    static const uint8_t offsets_from_txclass[3][2] = {
+        [TX_CLASS_2D] = { 1, 1 },
+        [TX_CLASS_H]  = { 0, 2 },
+        [TX_CLASS_V]  = { 2, 0 }
     };
-    const uint8_t (*const offsets)[2] = offsets_from_txclass[tx_class];
-    for (int i = 0; i < 3; i++)
-        mag += levels[(x + offsets[i][1]) * stride + y + offsets[i][0]];
+    const uint8_t *const offsets = offsets_from_txclass[tx_class];
+    int mag;
+    levels += x*stride + y;
+    mag = levels[1 * stride + 0] + levels[0 * stride + 1];
+    mag += levels[offsets[1] * stride + offsets[0]];
 
     mag = imin((mag + 1) >> 1, 6);
     if (!ac) return mag;
