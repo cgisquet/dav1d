@@ -184,7 +184,8 @@ static int decode_coefs(Dav1dTileContext *const t,
         uint8_t *const levels = t->scratch.levels;
         const int sw = imin(t_dim->w, 8), sh = imin(t_dim->h, 8);
         const ptrdiff_t stride = 4 * (sh + 1);
-        memset(levels, 0, stride * 4 * (sw + 1));
+        uint8_t *const lvl = levels + stride * 4 * (sw + 1);
+        memset(levels, 0, 2 * stride * 4 * (sw + 1));
         const int shift = 2 + imin(t_dim->lh, 3), mask = 4 * sh - 1;
 
         { // eob
@@ -195,6 +196,7 @@ static int decode_coefs(Dav1dTileContext *const t,
 
             int tok_br = dav1d_msac_decode_symbol_adapt4(&ts->msac, lo_cdf, 2);
             int tok = 1 + tok_br;
+            lvl[x * stride + y] = (uint8_t)tok;
             if (dbg)
                 printf("Post-lo_tok[%d][%d][%d][%d=%d=%d]: r=%d\n",
                        t_dim->ctx, chroma, ctx, eob, rc, tok, ts->msac.rng);
@@ -215,13 +217,17 @@ static int decode_coefs(Dav1dTileContext *const t,
             const int rc = scan[i], x = rc >> shift, y = rc & mask;
 
             // lo tok
-            const int ctx = get_coef_nz_ctx(levels, tx, tx_class, x, y, stride);
+            const int ctx = get_coef_nz_ctx(lvl, tx, tx_class, x, y, stride);
             uint16_t *const lo_cdf = ts->cdf.coef.base_tok[t_dim->ctx][chroma][ctx];
             int tok = dav1d_msac_decode_symbol_adapt4(&ts->msac, lo_cdf, 3);
             if (dbg)
                 printf("Post-lo_tok[%d][%d][%d][%d=%d=%d]: r=%d\n",
                        t_dim->ctx, chroma, ctx, i, rc, tok, ts->msac.rng);
 
+            if (!tok) continue;
+            lvl[x * stride + y] = (uint8_t)tok;
+
+            // hi tok
             if (tok == 3) {
                 const int br_ctx = get_br_ctx(levels, 1, tx_class, x, y, stride);
                 tok = dav1d_msac_decode_hi_tok(&ts->msac, br_cdf[br_ctx]);
@@ -235,7 +241,7 @@ static int decode_coefs(Dav1dTileContext *const t,
         }
         { // dc
             const int ctx = (tx_class != TX_CLASS_2D) ?
-                get_coef_nz_ctx(levels, tx, tx_class, 0, 0, stride) : 0;
+                get_coef_nz_ctx(lvl, tx, tx_class, 0, 0, stride) : 0;
             uint16_t *const lo_cdf = ts->cdf.coef.base_tok[t_dim->ctx][chroma][ctx];
             dc_tok = dav1d_msac_decode_symbol_adapt4(&ts->msac, lo_cdf, 3);
             if (dbg)
