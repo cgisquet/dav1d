@@ -168,16 +168,17 @@ static int decode_coefs(Dav1dTileContext *const t,
     uint16_t (*const br_cdf)[5] =
         ts->cdf.coef.br_tok[imin(t_dim->ctx, 3)][chroma];
     const int16_t *const scan = dav1d_scans[tx][tx_class];
-    uint8_t levels[36 * 36];
+    uint8_t levels[36 * 36], lvl[36*36];
     ptrdiff_t stride = 4 * (imin(t_dim->h, 8) + 1);
     memset(levels, 0, stride * 4 * (imin(t_dim->w, 8) + 1));
+    memset(lvl, 0, stride * 4 * (imin(t_dim->w, 8) + 1));
     const int shift = 2 + imin(t_dim->lh, 3), mask = 4 * imin(t_dim->h, 8) - 1;
     unsigned cul_level = 0;
     for (int i = eob, is_last = 1; i >= 0; i--, is_last = 0) {
         const int rc = scan[i], x = rc >> shift, y = rc & mask;
 
         // lo tok
-        const int ctx = get_coef_nz_ctx(levels, i, rc, is_last, tx, tx_class);
+        const int ctx = get_coef_nz_ctx(lvl, i, rc, is_last, tx, tx_class);
         uint16_t *const lo_cdf = is_last ?
             ts->cdf.coef.eob_base_tok[t_dim->ctx][chroma][ctx] :
             ts->cdf.coef.base_tok[t_dim->ctx][chroma][ctx];
@@ -187,6 +188,7 @@ static int decode_coefs(Dav1dTileContext *const t,
         printf("Post-lo_tok[%d][%d][%d][%d=%d=%d]: r=%d\n",
                t_dim->ctx, chroma, ctx, i, rc, tok, ts->msac.rng);
         if (!tok) continue;
+        lvl[x * stride + y] = tok;
 
         // hi tok
         if (tok == 3) {
