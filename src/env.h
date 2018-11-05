@@ -616,17 +616,17 @@ static inline int get_coef_nz_ctx(const uint8_t *levels,
                                   const ptrdiff_t stride)
 {
     levels += x * stride + y;
-    int mag = imin(levels[0 * stride + 1], 3)
-            + imin(levels[1 * stride + 0], 3);
+    int mag = levels[0 * stride + 1]
+            + levels[1 * stride + 0];
     if (tx_class == TX_CLASS_2D) {
-        mag += imin(levels[0 * stride + 2], 3)
-             + imin(levels[1 * stride + 1], 3)
-             + imin(levels[2 * stride + 0], 3);
-	    mag = imin((mag + 1) >> 1, 4);
+        mag += levels[0 * stride + 2]
+             + levels[1 * stride + 1]
+             + levels[2 * stride + 0];
+        mag = imin((mag + 1) >> 1, 4);
         return dav1d_nz_map_ctx_offset[tx][imin(y, 4)][imin(x, 4)] + mag;
     } else {
         int s = tx_class==TX_CLASS_V ? 1 : stride;
-        mag += imin(levels[2*s], 3) + imin(levels[3*s], 3) + imin(levels[4*s], 3);
+        mag += levels[2*s] + levels[3*s] + levels[4*s];
         mag = imin((mag + 1) >> 1, 4);
         return 26 + imin((tx_class == TX_CLASS_V) ? y : x, 2) * 5 + mag;
     }
