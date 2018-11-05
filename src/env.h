@@ -615,26 +615,20 @@ static inline int get_coef_nz_ctx(const uint8_t *levels,
                                   const int x, const int y,
                                   const ptrdiff_t stride)
 {
-    static const uint8_t offsets[3][5-2][2 /* x, y */] = {
-        [TX_CLASS_2D] = {
-            /*{ 0, 1 }, { 1, 0 },*/ { 1, 1 }, { 2, 0 }, { 0, 2 },
-        }, [TX_CLASS_V] = {
-            /*{ 0, 1 }, { 1, 0 },*/ { 0, 2 }, { 0, 3 }, { 0, 4 }
-        }, [TX_CLASS_H] = {
-            /*{ 0, 1 }, { 1, 0 },*/ { 2, 0 }, { 3, 0 }, { 4, 0 }
-        }
-    };
-    const uint8_t (*const off)[2] = offsets[tx_class];
     levels += x * stride + y;
     int mag = imin(levels[0 * stride + 1], 3)
             + imin(levels[1 * stride + 0], 3);
-    for (int i = 0; i < 3; i++)
-        mag += imin(levels[off[i][0] * stride + off[i][1]], 3);
-    const int ctx = imin((mag + 1) >> 1, 4);
     if (tx_class == TX_CLASS_2D) {
-        return dav1d_nz_map_ctx_offset[tx][imin(y, 4)][imin(x, 4)] + ctx;
+        mag += imin(levels[0 * stride + 2], 3)
+             + imin(levels[1 * stride + 1], 3)
+             + imin(levels[2 * stride + 0], 3);
+	    mag = imin((mag + 1) >> 1, 4);
+        return dav1d_nz_map_ctx_offset[tx][imin(y, 4)][imin(x, 4)] + mag;
     } else {
-        return 26 + imin((tx_class == TX_CLASS_V) ? y : x, 2) * 5 + ctx;
+        int s = tx_class==TX_CLASS_V ? 1 : stride;
+        mag += imin(levels[2*s], 3) + imin(levels[3*s], 3) + imin(levels[4*s], 3);
+        mag = imin((mag + 1) >> 1, 4);
+        return 26 + imin((tx_class == TX_CLASS_V) ? y : x, 2) * 5 + mag;
     }
 }
 
