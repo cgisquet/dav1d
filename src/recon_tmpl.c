@@ -174,14 +174,14 @@ static int decode_coefs(Dav1dTileContext *const t,
     memset(lvl, 0, stride * 4 * (imin(t_dim->w, 8) + 1));
     const int shift = 2 + imin(t_dim->lh, 3), mask = 4 * imin(t_dim->h, 8) - 1;
     unsigned cul_level = 0;
+    uint16_t (*const eob_base_tok)[4] = ts->cdf.coef.eob_base_tok[t_dim->ctx][chroma];
+    uint16_t (*const base_tok)[5] = ts->cdf.coef.base_tok[t_dim->ctx][chroma];
     for (int i = eob, is_last = 1; i >= 0; i--, is_last = 0) {
         const int rc = scan[i], x = rc >> shift, y = rc & mask;
 
         // lo tok
         const int ctx = get_coef_nz_ctx(lvl, i, rc, is_last, tx, tx_class);
-        uint16_t *const lo_cdf = is_last ?
-            ts->cdf.coef.eob_base_tok[t_dim->ctx][chroma][ctx] :
-            ts->cdf.coef.base_tok[t_dim->ctx][chroma][ctx];
+        uint16_t *const lo_cdf = is_last ? eob_base_tok[ctx] : base_tok[ctx];
         int tok = dav1d_msac_decode_symbol_adapt4(&ts->msac, lo_cdf,
                                                   4 - is_last) + is_last;
         if (dbg)
