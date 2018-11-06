@@ -72,15 +72,14 @@ static inline void splat_oneref_mv(refmvs *r, const ptrdiff_t stride,
     int bh4 = dav1d_block_dimensions[bs][1];
 
     r += by4 * stride + bx4;
-    const refmvs tmpl = (refmvs) {
-        .ref = { ref + 1, is_interintra ? 0 : -1 },
-        .mv = { mv },
-        .sb_type = dav1d_bs_to_sbtype[bs],
-        .mode = N_INTRA_PRED_MODES + mode,
-    };
     do {
         for (int x = 0; x < bw4; x++)
-            r[x] = tmpl;
+            r[x] = (refmvs) {
+                .ref = { ref + 1, is_interintra ? 0 : -1 },
+                .mv = { mv },
+                .sb_type = dav1d_bs_to_sbtype[bs],
+                .mode = N_INTRA_PRED_MODES + mode,
+            };
         r += stride;
     } while (--bh4);
 }
@@ -93,15 +92,14 @@ static inline void splat_intrabc_mv(refmvs *r, const ptrdiff_t stride,
     int bh4 = dav1d_block_dimensions[bs][1];
 
     r += by4 * stride + bx4;
-    const refmvs tmpl = (refmvs) {
-        .ref = { 0, -1 },
-        .mv = { mv },
-        .sb_type = dav1d_bs_to_sbtype[bs],
-        .mode = DC_PRED,
-    };
     do {
         for (int x = 0; x < bw4; x++)
-            r[x] = tmpl;
+            r[x] = (refmvs) {
+                .ref = { 0, -1 },
+                .mv = { mv },
+                .sb_type = dav1d_bs_to_sbtype[bs],
+                .mode = DC_PRED,
+            };
         r += stride;
     } while (--bh4);
 }
@@ -117,15 +115,14 @@ static inline void splat_tworef_mv(refmvs *r, const ptrdiff_t stride,
     int bh4 = dav1d_block_dimensions[bs][1];
 
     r += by4 * stride + bx4;
-    const refmvs tmpl = (refmvs) {
-        .ref = { ref1 + 1, ref2 + 1 },
-        .mv = { mv1, mv2 },
-        .sb_type = dav1d_bs_to_sbtype[bs],
-        .mode = N_INTRA_PRED_MODES + N_INTER_PRED_MODES + mode,
-    };
     do {
         for (int x = 0; x < bw4; x++)
-            r[x] = tmpl;
+            r[x] = (refmvs) {
+                .ref = { ref1 + 1, ref2 + 1 },
+                .mv = { mv1, mv2 },
+                .sb_type = dav1d_bs_to_sbtype[bs],
+                .mode = N_INTRA_PRED_MODES + N_INTER_PRED_MODES + mode,
+            };
         r += stride;
     } while (--bh4);
 }
