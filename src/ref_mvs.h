@@ -61,6 +61,93 @@ void dav1d_find_ref_mvs(candidate_mv *mvstack, int *cnt, mv (*mvlist)[2],
 
 extern const uint8_t dav1d_bs_to_sbtype[];
 extern const uint8_t dav1d_sbtype_to_bs[];
+
+static inline void AV_COPY64(void *d, const void *s)
+{
+    __asm__("movq   %1, %%mm0  \n\t"
+            "movq   %%mm0, %0  \n\t"
+            : "=m"(*(uint64_t*)d)
+            : "m" (*(const uint64_t*)s)
+            : "mm0");
+}
+
+static inline void AV_COPY128(void *d, const void *s)
+{
+    struct v {uint64_t v[2];};
+
+    __asm__("movaps   %1, %%xmm0  \n\t"
+            "movups   %%xmm0, %0  \n\t"
+            : "=m"(*(struct v*)d)
+            : "m" (*(const struct v*)s)
+            : "xmm0");
+}
+
+typedef union aliasmv { refmvs rmv[4]; uint8_t u8[48]; } ATTR_ALIAS aliasmv;
+
+static inline void splat_mv(refmvs *r, const ptrdiff_t stride,
+                            const int bw4, int bh4, aliasmv *a)
+{
+    if (bw4 == 1) {
+        do {
+            AV_COPY64(((aliasmv*)r)->u8+ 0, a->u8+ 0);
+            *(uint32_t*)(((aliasmv*)r)->u8+ 8) = *(uint32_t*)(a->u8+ 8);
+            *r = a->rmv[0];
+            r += stride;
+        } while (--bh4);
+        return;
+    }
+
+    a->rmv[1] = a->rmv[0];
+    if (bw4 == 2) {
+        do {
+            AV_COPY128(((aliasmv*)r)->u8+ 0, a->u8+ 0);
+            AV_COPY64 (((aliasmv*)r)->u8+16, a->u8+16);
+            r += stride;
+        } while (--bh4);
+        return;
+    }
+
+    AV_COPY128(a->u8+24, a->u8+ 0); AV_COPY64 (a->u8+40, a->u8+ 4);
+    do {
+        aliasmv *dst = (aliasmv*)r;
+        switch(bw4)
+        {
+        case 32:
+            AV_COPY128(dst->u8+368, a->u8+32);
+            AV_COPY128(dst->u8+352, a->u8+16);
+            AV_COPY128(dst->u8+336, a->u8+ 0);
+            AV_COPY128(dst->u8+320, a->u8+32);
+            AV_COPY128(dst->u8+304, a->u8+16);
+            AV_COPY128(dst->u8+288, a->u8+ 0);
+            AV_COPY128(dst->u8+272, a->u8+32);
+            AV_COPY128(dst->u8+256, a->u8+16);
+            AV_COPY128(dst->u8+240, a->u8+ 0);
+            AV_COPY128(dst->u8+224, a->u8+32);
+            AV_COPY128(dst->u8+208, a->u8+16);
+            AV_COPY128(dst->u8+192, a->u8+ 0);
+            /* fall-thru */
+        case 16:
+            AV_COPY128(dst->u8+176, a->u8+32);
+            AV_COPY128(dst->u8+160, a->u8+16);
+            AV_COPY128(dst->u8+144, a->u8+ 0);
+            AV_COPY128(dst->u8+128, a->u8+32);
+            AV_COPY128(dst->u8+112, a->u8+16);
+            AV_COPY128(dst->u8+ 96, a->u8+ 0);
+            /* fall-thru */
+        case 8:
+            AV_COPY128(dst->u8+ 80, a->u8+32);
+            AV_COPY128(dst->u8+ 64, a->u8+16);
+            AV_COPY128(dst->u8+ 48, a->u8+ 0);
+            /* fall-thru */
+        case 4:
+            AV_COPY128(dst->u8+ 32, a->u8+32);
+            AV_COPY128(dst->u8+ 16, a->u8+16);
+            AV_COPY128(dst->u8+  0, a->u8+ 0);
+        }
+        r += stride;
+    } while (--bh4);
+}
+
 static inline void splat_oneref_mv(refmvs *r, const ptrdiff_t stride,
                                    const int by4, const int bx4,
                                    const enum BlockSize bs,
@@ -72,16 +159,17 @@ static inline void splat_oneref_mv(refmvs *r, const ptrdiff_t stride,
     int bh4 = dav1d_block_dimensions[bs][1];
 
     r += by4 * stride + bx4;
-    do {
-        for (int x = 0; x < bw4; x++)
-            r[x] = (refmvs) {
-                .ref = { ref + 1, is_interintra ? 0 : -1 },
-                .mv = { mv },
-                .sb_type = dav1d_bs_to_sbtype[bs],
-                .mode = N_INTRA_PRED_MODES + mode,
-            };
-        r += stride;
-    } while (--bh4);
+
+    aliasmv ALIGN(a, 32);
+
+    a.rmv[0] = (refmvs) {
+        .ref = { ref + 1, is_interintra ? 0 : -1 },
+        .mv = { mv },
+        .sb_type = dav1d_bs_to_sbtype[bs],
+        .mode = N_INTRA_PRED_MODES + mode,
+    };
+
+    splat_mv(r, stride, bw4, bh4, &a);
 }
 
 static inline void splat_intrabc_mv(refmvs *r, const ptrdiff_t stride,
@@ -92,16 +180,17 @@ static inline void splat_intrabc_mv(refmvs *r, const ptrdiff_t stride,
     int bh4 = dav1d_block_dimensions[bs][1];
 
     r += by4 * stride + bx4;
-    do {
-        for (int x = 0; x < bw4; x++)
-            r[x] = (refmvs) {
-                .ref = { 0, -1 },
-                .mv = { mv },
-                .sb_type = dav1d_bs_to_sbtype[bs],
-                .mode = DC_PRED,
-            };
-        r += stride;
-    } while (--bh4);
+
+    aliasmv ALIGN(a, 32);
+
+    a.rmv[0] = (refmvs) {
+        .ref = { 0, -1 },
+        .mv = { mv },
+        .sb_type = dav1d_bs_to_sbtype[bs],
+        .mode = DC_PRED,
+    };
+
+    splat_mv(r, stride, bw4, bh4, &a);
 }
 
 static inline void splat_tworef_mv(refmvs *r, const ptrdiff_t stride,
@@ -115,16 +204,17 @@ static inline void splat_tworef_mv(refmvs *r, const ptrdiff_t stride,
     int bh4 = dav1d_block_dimensions[bs][1];
 
     r += by4 * stride + bx4;
-    do {
-        for (int x = 0; x < bw4; x++)
-            r[x] = (refmvs) {
-                .ref = { ref1 + 1, ref2 + 1 },
-                .mv = { mv1, mv2 },
-                .sb_type = dav1d_bs_to_sbtype[bs],
-                .mode = N_INTRA_PRED_MODES + N_INTER_PRED_MODES + mode,
-            };
-        r += stride;
-    } while (--bh4);
+
+    aliasmv ALIGN(a, 32);
+
+    a.rmv[0] = (refmvs) {
+        .ref = { ref1 + 1, ref2 + 1 },
+        .mv = { mv1, mv2 },
+        .sb_type = dav1d_bs_to_sbtype[bs],
+        .mode = N_INTRA_PRED_MODES + N_INTER_PRED_MODES + mode,
+    };
+
+    splat_mv(r, stride, bw4, bh4, &a);
 }
 
 static inline void splat_intraref(refmvs *r, const ptrdiff_t stride,
@@ -136,18 +226,17 @@ static inline void splat_intraref(refmvs *r, const ptrdiff_t stride,
     int bh4 = dav1d_block_dimensions[bs][1];
 
     r += by4 * stride + bx4;
-    do {
-        int x;
 
-        for (x = 0; x < bw4; x++)
-            r[x] = (refmvs) {
-                .ref = { 0, -1 },
-                .mv = { [0] = { .y = -0x8000, .x = -0x8000 }, },
-                .sb_type = dav1d_bs_to_sbtype[bs],
-                .mode = mode,
-            };
-        r += stride;
-    } while (--bh4);
+    aliasmv ALIGN(a, 32);
+
+    a.rmv[0] = (refmvs) {
+        .ref = { 0, -1 },
+        .mv = { [0] = { .y = -0x8000, .x = -0x8000 }, },
+        .sb_type = dav1d_bs_to_sbtype[bs],
+        .mode = mode,
+    };
+
+    splat_mv(r, stride, bw4, bh4, &a);
 }
 
 static inline void fix_mv_precision(const Dav1dFrameHeader *const hdr,
