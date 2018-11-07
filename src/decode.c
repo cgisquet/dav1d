@@ -1013,6 +1013,7 @@ static int decode_b(Dav1dTileContext *const t,
     }
 
     // intra/inter-specific stuff
+    const Dav1dSplatMVDSPContext *splat = &f->c->splat;
     if (b->intra) {
         uint16_t *const ymode_cdf = f->frame_hdr->frame_type & 1 ?
             ts->cdf.m.y_mode[dav1d_ymode_size_context[bs]] :
@@ -1235,7 +1236,7 @@ static int decode_b(Dav1dTileContext *const t,
             }
         }
         if ((f->frame_hdr->frame_type & 1) || f->frame_hdr->allow_intrabc) {
-            splat_intraref(f->mvs, f->b4_stride, t->by, t->bx, bs,
+            splat_intraref(splat, f->mvs, f->b4_stride, t->by, t->bx, bs,
                            y_mode_nofilt);
         }
     } else if (!(f->frame_hdr->frame_type & 1)) {
@@ -1336,7 +1337,7 @@ static int decode_b(Dav1dTileContext *const t,
             if (f->bd_fn.recon_b_inter(t, bs, b)) return -1;
         }
 
-        splat_intrabc_mv(f->mvs, f->b4_stride, t->by, t->bx, bs, b->mv[0]);
+        splat_intrabc_mv(splat, f->mvs, f->b4_stride, t->by, t->bx, bs, b->mv[0]);
 
 #define set_ctx(type, dir, diridx, off, mul, rep_macro) \
         rep_macro(type, t->dir tx_intra, off, mul * b_dim[2 + diridx]); \
@@ -1869,11 +1870,11 @@ static int decode_b(Dav1dTileContext *const t,
 
         // context updates
         if (is_comp) {
-            splat_tworef_mv(f->mvs, f->b4_stride, t->by, t->bx, bs,
+            splat_tworef_mv(splat, f->mvs, f->b4_stride, t->by, t->bx, bs,
                             b->inter_mode, b->ref[0], b->ref[1],
                             b->mv[0], b->mv[1]);
         } else {
-            splat_oneref_mv(f->mvs, f->b4_stride, t->by, t->bx, bs,
+            splat_oneref_mv(splat, f->mvs, f->b4_stride, t->by, t->bx, bs,
                             b->inter_mode, b->ref[0], b->mv[0],
                             b->interintra_type);
         }
@@ -3089,6 +3090,9 @@ int dav1d_submit_frame(Dav1dContext *const c) {
     f->dsp = &c->dsp[f->seq_hdr->hbd];
 
     const int bpc = 8 + 2 * f->seq_hdr->hbd;
+
+    if (!c->splat.splat)
+        dav1d_splat_mv_init(&c->splat);
 
     if (!f->dsp->ipred.intra_pred[DC_PRED]) {
         Dav1dDSPContext *const dsp = &c->dsp[f->seq_hdr->hbd];

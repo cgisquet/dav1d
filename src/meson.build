@@ -44,6 +44,7 @@ libdav1d_sources = files(
     'ref.c',
     'ref_mvs.c',
     'scan.c',
+    'splat_mvs.c',
     'tables.c',
     'warpmv.c',
     'wedge.c',
@@ -108,6 +109,7 @@ if is_asm_enabled
 
         libdav1d_sources += files(
             'x86/cpu.c',
+            'x86/splat_mvs_init.c',
         )
 
         libdav1d_tmpl_sources += files(
@@ -123,6 +125,7 @@ if is_asm_enabled
         libdav1d_sources_asm = files(
             'x86/cpuid.asm',
             'x86/msac.asm',
+            'x86/splat_mv.asm',
         )
 
         if dav1d_bitdepths.contains('8')
