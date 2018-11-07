@@ -251,6 +251,12 @@ typedef struct mv {
     int16_t y, x;
 } mv;
 
+typedef struct refmvs {
+    mv mv[2];
+    int8_t ref[2]; // [0] = 0: intra=1, [1] = -1: comp=0
+    int8_t mode, sb_type;
+} refmvs;
+
 enum MotionMode {
     MM_TRANSLATION,
     MM_OBMC,
