@@ -62,36 +62,25 @@ void dav1d_find_ref_mvs(candidate_mv *mvstack, int *cnt, mv (*mvlist)[2],
 extern const uint8_t dav1d_bs_to_sbtype[];
 extern const uint8_t dav1d_sbtype_to_bs[];
 
-static inline void AV_COPY64(void *d, const void *s)
-{
-    __asm__("movq   %1, %%mm0  \n\t"
-            "movq   %%mm0, %0  \n\t"
-            : "=m"(*(uint64_t*)d)
-            : "m" (*(const uint64_t*)s)
-            : "mm0");
-}
-
-static inline void AV_COPY128(void *d, const void *s)
-{
-    struct v {uint64_t v[2];};
-
-    __asm__("movaps   %1, %%xmm0  \n\t"
-            "movups   %%xmm0, %0  \n\t"
-            : "=m"(*(struct v*)d)
-            : "m" (*(const struct v*)s)
-            : "xmm0");
-}
-
 typedef union aliasmv { refmvs rmv[4]; uint8_t u8[48]; } ATTR_ALIAS aliasmv;
+
+#include <smmintrin.h>
+
+#define STOREU16(a, b) _mm_storeu_si128((__m128i *)(a), b);
+#define STORE16(a, b)  _mm_store_si128 ((__m128i *)(a), b);
+#define STORE8(a, b)   _mm_storel_epi64((__m128i *)(a), b);
+#define LOAD16(a)      _mm_load_si128  ((__m128i *)(a));
 
 static inline void splat_mv(refmvs *r, const ptrdiff_t stride,
                             const int bw4, int bh4, aliasmv *a)
 {
     if (bw4 == 1) {
+        const __m128i ref = LOAD16(a);
+        register uint32_t val = *(uint32_t*)(a->u8+ 8);
         do {
-            AV_COPY64(((aliasmv*)r)->u8+ 0, a->u8+ 0);
-            *(uint32_t*)(((aliasmv*)r)->u8+ 8) = *(uint32_t*)(a->u8+ 8);
-            *r = a->rmv[0];
+            STORE8(r, ref);
+            *(uint32_t*)(((aliasmv*)r)->u8+ 8) = val;
+            //*(uint32_t*)(((aliasmv*)r)->u8+ 8) = _mm_extract_epi32(ref, 3);
             r += stride;
         } while (--bh4);
         return;
@@ -99,50 +88,58 @@ static inline void splat_mv(refmvs *r, const ptrdiff_t stride,
 
     a->rmv[1] = a->rmv[0];
     if (bw4 == 2) {
+        const __m128i ref1 = LOAD16(a->u8+ 0);
+        const __m128i ref2 = _mm_loadl_epi64((__m128i *)(a->u8+16));
         do {
-            AV_COPY128(((aliasmv*)r)->u8+ 0, a->u8+ 0);
-            AV_COPY64 (((aliasmv*)r)->u8+16, a->u8+16);
+            aliasmv *dst = (aliasmv*)r;
+            STOREU16(r, ref1);
+            STORE8(dst->u8+16, ref2);
             r += stride;
         } while (--bh4);
         return;
     }
 
-    AV_COPY128(a->u8+24, a->u8+ 0); AV_COPY64 (a->u8+40, a->u8+ 4);
+    const __m128i ref1 = LOAD16(a->u8+ 0);
+    STOREU16(a->u8+24, ref1);
+    __m128i tmp = _mm_loadl_epi64((__m128i *)(a->u8+4));
+    STORE8(a->u8+40, tmp);
+    const __m128i ref2 = LOAD16(a->u8+16);
+    const __m128i ref3 = LOAD16(a->u8+32);
     do {
         aliasmv *dst = (aliasmv*)r;
         switch(bw4)
         {
         case 32:
-            AV_COPY128(dst->u8+368, a->u8+32);
-            AV_COPY128(dst->u8+352, a->u8+16);
-            AV_COPY128(dst->u8+336, a->u8+ 0);
-            AV_COPY128(dst->u8+320, a->u8+32);
-            AV_COPY128(dst->u8+304, a->u8+16);
-            AV_COPY128(dst->u8+288, a->u8+ 0);
-            AV_COPY128(dst->u8+272, a->u8+32);
-            AV_COPY128(dst->u8+256, a->u8+16);
-            AV_COPY128(dst->u8+240, a->u8+ 0);
-            AV_COPY128(dst->u8+224, a->u8+32);
-            AV_COPY128(dst->u8+208, a->u8+16);
-            AV_COPY128(dst->u8+192, a->u8+ 0);
+            STORE16(dst->u8+368, ref3);
+            STORE16(dst->u8+352, ref2);
+            STORE16(dst->u8+336, ref1);
+            STORE16(dst->u8+320, ref3);
+            STORE16(dst->u8+304, ref2);
+            STORE16(dst->u8+288, ref1);
+            STORE16(dst->u8+272, ref3);
+            STORE16(dst->u8+256, ref2);
+            STORE16(dst->u8+240, ref1);
+            STORE16(dst->u8+224, ref3);
+            STORE16(dst->u8+208, ref2);
+            STORE16(dst->u8+192, ref1);
             /* fall-thru */
         case 16:
-            AV_COPY128(dst->u8+176, a->u8+32);
-            AV_COPY128(dst->u8+160, a->u8+16);
-            AV_COPY128(dst->u8+144, a->u8+ 0);
-            AV_COPY128(dst->u8+128, a->u8+32);
-            AV_COPY128(dst->u8+112, a->u8+16);
-            AV_COPY128(dst->u8+ 96, a->u8+ 0);
+            STORE16(dst->u8+176, ref3);
+            STORE16(dst->u8+160, ref2);
+            STORE16(dst->u8+144, ref1);
+            STORE16(dst->u8+128, ref3);
+            STORE16(dst->u8+112, ref2);
+            STORE16(dst->u8+ 96, ref1);
             /* fall-thru */
         case 8:
-            AV_COPY128(dst->u8+ 80, a->u8+32);
-            AV_COPY128(dst->u8+ 64, a->u8+16);
-            AV_COPY128(dst->u8+ 48, a->u8+ 0);
+            STORE16(dst->u8+ 80, ref3);
+            STORE16(dst->u8+ 64, ref2);
+            STORE16(dst->u8+ 48, ref1);
             /* fall-thru */
         case 4:
-            AV_COPY128(dst->u8+ 32, a->u8+32);
-            AV_COPY128(dst->u8+ 16, a->u8+16);
-            AV_COPY128(dst->u8+  0, a->u8+ 0);
+            STORE16(dst->u8+ 32, ref3);
+            STORE16(dst->u8+ 16, ref2);
+            STORE16(dst->u8+  0, ref1);
         }
         r += stride;
     } while (--bh4);
