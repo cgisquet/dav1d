@@ -64,6 +64,8 @@ decl_check_bitfns(void checkasm_check_loopfilter);
 decl_check_bitfns(void checkasm_check_looprestoration);
 decl_check_bitfns(void checkasm_check_mc);
 
+void checkasm_check_msac(void);
+
 void *checkasm_check_func(void *func, const char *name, ...);
 int checkasm_bench_func(void);
 void checkasm_fail_func(const char *msg, ...);
