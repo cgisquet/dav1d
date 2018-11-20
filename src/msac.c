@@ -110,7 +110,7 @@ unsigned msac_decode_bool_equi(MsacContext *const s) {
 /* Decode a single binary value.
  * f: The probability that the bit is one
  * Return: The value decoded (0 or 1). */
-unsigned msac_decode_bool(MsacContext *const s, const unsigned f) {
+unsigned msac_decode_bool_prob(MsacContext *const s, const unsigned f) {
     ec_win v, vw, dif = s->dif;
     uint16_t r = s->rng;
     unsigned ret;
@@ -179,7 +179,7 @@ unsigned msac_decode_symbol_adapt(MsacContext *const c,
 }
 
 unsigned msac_decode_bool_adapt(MsacContext *const c, uint16_t *const cdf) {
-    const unsigned bit = msac_decode_bool(c, *cdf >> EC_PROB_SHIFT);
+    const unsigned bit = msac_decode_bool_prob(c, *cdf >> EC_PROB_SHIFT);
 
     if(c->allow_update_cdf){
         // update_cdf() specialized for boolean CDFs
