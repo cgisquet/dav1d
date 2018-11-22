@@ -36,19 +36,19 @@
 
 #define EC_MIN_PROB 4  // must be <= (1<<EC_PROB_SHIFT)/16
 
-#define EC_WIN_SIZE (sizeof(ec_win) << 3)
+#define EC_WIN_BITS (EC_WIN_SIZE << 3)
 
 static inline void ctx_refill(MsacContext *s) {
     const uint8_t *buf_pos = s->buf_pos;
     const uint8_t *buf_end = s->buf_end;
-    int c = EC_WIN_SIZE - s->cnt - 24;
+    int c = EC_WIN_BITS - s->cnt - 24;
     ec_win dif = s->dif;
     while (c >= 0 && buf_pos < buf_end) {
         dif ^= ((ec_win)*buf_pos++) << c;
         c -= 8;
     }
     s->dif = dif;
-    s->cnt = EC_WIN_SIZE - c - 24;
+    s->cnt = EC_WIN_BITS - c - 24;
     s->buf_pos = buf_pos;
 }
 
@@ -73,7 +73,7 @@ unsigned msac_decode_symbol(MsacContext *const s, const uint16_t *const cdf,
                             const unsigned n_symbols)
 {
     ec_win u, v = s->rng, r = s->rng >> 8;
-    const ec_win c = s->dif >> (EC_WIN_SIZE - 16);
+    const ec_win c = s->dif >> (EC_WIN_BITS - 16);
     unsigned ret = 0;
 
     assert(!cdf[n_symbols - 1]);
@@ -87,7 +87,7 @@ unsigned msac_decode_symbol(MsacContext *const s, const uint16_t *const cdf,
 
     assert(u <= s->rng);
 
-    ctx_norm(s, s->dif - (v << (EC_WIN_SIZE - 16)), u - v);
+    ctx_norm(s, s->dif - (v << (EC_WIN_BITS - 16)), u - v);
     return ret - 1;
 }
 
@@ -95,11 +95,11 @@ unsigned msac_decode_bool_equi(MsacContext *const s) {
     ec_win v, vw, dif = s->dif;
     uint16_t r = s->rng;
     unsigned ret;
-    assert((dif >> (EC_WIN_SIZE - 16)) < r);
+    assert((dif >> (EC_WIN_BITS - 16)) < r);
     // When the probability is 1/2, f = 16384 >> EC_PROB_SHIFT = 256 and we can
     // replace the multiply with a simple shift.
     v = ((r >> 8) << 7) + EC_MIN_PROB;
-    vw   = v << (EC_WIN_SIZE - 16);
+    vw   = v << (EC_WIN_BITS - 16);
     ret  = dif >= vw;
     dif -= ret*vw;
     v   += ret*(r - 2*v);
@@ -114,9 +114,9 @@ unsigned msac_decode_bool(MsacContext *const s, const unsigned f) {
     ec_win v, vw, dif = s->dif;
     uint16_t r = s->rng;
     unsigned ret;
-    assert((dif >> (EC_WIN_SIZE - 16)) < r);
+    assert((dif >> (EC_WIN_BITS - 16)) < r);
     v = ((r >> 8) * f >> (7 - EC_PROB_SHIFT)) + EC_MIN_PROB;
-    vw   = v << (EC_WIN_SIZE - 16);
+    vw   = v << (EC_WIN_BITS - 16);
     ret  = dif >= vw;
     dif -= ret*vw;
     v   += ret*(r - 2*v);
@@ -201,7 +201,7 @@ void msac_init(MsacContext *const s, const uint8_t *const data,
 {
     s->buf_pos = data;
     s->buf_end = data + sz;
-    s->dif = ((ec_win)1 << (EC_WIN_SIZE - 1)) - 1;
+    s->dif = ((ec_win)1 << (EC_WIN_BITS - 1)) - 1;
     s->rng = 0x8000;
     s->cnt = -15;
     s->allow_update_cdf = !disable_cdf_update_flag;

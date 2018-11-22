@@ -32,6 +32,7 @@
 #include <stdlib.h>
 
 /* Using uint32_t should be faster on 32 bit systems, in theory, maybe */
+#define EC_WIN_SIZE (8)
 typedef uint64_t ec_win;
 
 typedef struct MsacContext {
