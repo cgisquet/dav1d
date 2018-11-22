@@ -253,6 +253,8 @@ else
     cdata.set10('ARCH_X86_32', false)
 endif
 
+cdata.set10('BIG_ENDIAN', host_machine.endian() == 'big')
+
 if cc.symbols_have_underscore_prefix()
     cdata.set10('PREFIX', true)
     cdata_asm.set10('PREFIX', true)

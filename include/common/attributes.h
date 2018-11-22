@@ -93,6 +93,14 @@
 #    define dav1d_uninit(x) x
 #endif
 
+#if defined (__GNUC__) || defined (__clang__)
+#    define likely(p)   __builtin_expect(!!(p), 1)
+#    define unlikely(p) __builtin_expect(!!(p), 0)
+#else
+#    define likely(p)   (!!(p))
+#    define unlikely(p) (!!(p))
+#endif
+
  #ifdef _MSC_VER
  #include <intrin.h>
 
@@ -135,5 +143,50 @@ static inline int clzll(const unsigned long long mask) {
     return __builtin_clzll(mask);
 }
 #endif /* !_MSC_VER */
+
+#include <stdint.h>
+#ifdef _MSC_VER
+#include <stdlib.h>
+
+static inline uint16_t bswap16(const uint16_t val) {
+    return _byteswap_ushort(val);
+}
+
+static inline uint32_t bswap32(const uint32_t val) {
+    return _byteswap_ulong(val);
+}
+
+static inline uint64_t bswap64(const uint64_t val) {
+    return _byteswap_uint64(val);
+}
+#else
+static inline uint16_t bswap16(const uint16_t val) {
+    return __builtin_bswap16(val);
+}
+
+static inline uint32_t bswap32(const uint32_t val) {
+    return __builtin_bswap32(val);
+}
+
+static inline uint64_t bswap64(const uint64_t val) {
+    return __builtin_bswap64(val);
+}
+#endif
+
+static inline uint32_t hton32(const uint32_t val) {
+#if BIG_ENDIAN
+  return val;
+#else
+  return bswap32(val);
+#endif
+}
+
+static inline uint64_t hton64(const uint64_t val) {
+#if BIG_ENDIAN
+  return val;
+#else
+  return bswap64(val);
+#endif
+}
 
 #endif /* __DAV1D_COMMON_ATTRIBUTES_H__ */

@@ -38,17 +38,34 @@
 
 #define EC_WIN_BITS (EC_WIN_SIZE << 3)
 
+static inline ec_win ec_win_read(const uint8_t *const buf) {
+#if EC_WIN_SIZE == 4
+    return hton32(*(ec_win *)buf);
+#else
+    return hton64(*(ec_win *)buf);
+#endif
+}
+
 static inline void ctx_refill(MsacContext *s) {
     const uint8_t *buf_pos = s->buf_pos;
     const uint8_t *buf_end = s->buf_end;
-    int c = EC_WIN_BITS - s->cnt - 24;
     ec_win dif = s->dif;
-    while (c >= 0 && buf_pos < buf_end) {
-        dif ^= ((ec_win)*buf_pos++) << c;
-        c -= 8;
+    if (likely(buf_end - buf_pos >= EC_WIN_SIZE)) {
+        ec_win tmp = ec_win_read(buf_pos);
+        int shift_bits = (24 + s->cnt) & ~0x7;
+        tmp >>= shift_bits;
+        dif ^= tmp << (shift_bits - 16 - s->cnt);
+        buf_pos += (EC_WIN_BITS - shift_bits) >> 3;
+        s->cnt += EC_WIN_BITS - shift_bits;
+    } else {
+        int c = EC_WIN_BITS - s->cnt - 24;
+        while (c >= 0 && buf_pos < buf_end) {
+            dif ^= ((ec_win)*buf_pos++) << c;
+            c -= 8;
+        }
+        s->cnt = EC_WIN_BITS - c - 24;
     }
     s->dif = dif;
-    s->cnt = EC_WIN_BITS - c - 24;
     s->buf_pos = buf_pos;
 }
 
