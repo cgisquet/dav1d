@@ -28,6 +28,8 @@
 #ifndef __DAV1D_SRC_MSAC_H__
 #define __DAV1D_SRC_MSAC_H__
 
+#include "config.h"
+
 #include <stdint.h>
 #include <stdlib.h>
 
@@ -39,7 +41,7 @@ typedef struct MsacContext {
     const uint8_t *buf_pos;
     const uint8_t *buf_end;
     ec_win dif;
-    uint16_t rng;
+    unsigned rng;
     int cnt;
     int allow_update_cdf;
 } MsacContext;
@@ -59,6 +61,13 @@ int msac_decode_uniform(MsacContext *c, unsigned n);
 
 unsigned msac_decode_bool_equi_c(MsacContext *const s);
 
-#define msac_decode_bool_equi msac_decode_bool_equi_c
+#if !defined(_WIN64) && HAVE_ASM && ARCH_X86_64
+
+unsigned dav1d_msac_decode_bool_equi(MsacContext *const s);
+
+# define msac_decode_bool_equi dav1d_msac_decode_bool_equi
+#else
+# define msac_decode_bool_equi msac_decode_bool_equi_c
+#endif
 
 #endif /* __DAV1D_SRC_MSAC_H__ */

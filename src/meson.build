@@ -124,6 +124,7 @@ if is_asm_enabled
             'x86/mc_ssse3.asm',
             'x86/itx_ssse3.asm',
             'x86/ipred_ssse3.asm',
+            'x86/msac.asm',
         )
 
         # Compile the ASM sources with NASM

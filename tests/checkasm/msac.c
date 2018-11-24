@@ -32,60 +32,9 @@
 unsigned (name)(MsacContext *const s)
 typedef decl_msac_decode_bool_equi_fn(*msac_decode_bool_equi_fn);
 
-#if ARCH_X86_64
-#include <assert.h>
-
-#define EC_MIN_PROB 4  // must be <= (1<<EC_PROB_SHIFT)/16
-
-#define EC_WIN_BITS (EC_WIN_SIZE << 3)
-
-static inline void ctx_refill(MsacContext *s) {
-    const uint8_t *buf_pos = s->buf_pos;
-    const uint8_t *buf_end = s->buf_end;
-    int c = EC_WIN_BITS - s->cnt - 24;
-    ec_win dif = s->dif;
-    while (c >= 0 && buf_pos < buf_end) {
-        dif ^= ((ec_win)*buf_pos++) << c;
-        c -= 8;
-    }
-    s->dif = dif;
-    s->cnt = EC_WIN_BITS - c - 24;
-    s->buf_pos = buf_pos;
-}
-
-/* Takes updated dif and range values, renormalizes them so that
- * 32768 <= rng < 65536 (reading more bytes from the stream into dif if
- * necessary), and stores them back in the decoder context.
- * dif: The new value of dif.
- * rng: The new value of the range. */
-static inline void ctx_norm(MsacContext *s, ec_win dif, uint32_t rng) {
-    const uint16_t d = 15 - (31 ^ clz(rng));
-    assert(rng <= 65535U);
-    s->cnt -= d;
-    s->dif = ((dif + 1) << d) - 1; /* Shift in 1s in the LSBs */
-    s->rng = rng << d;
-    if (s->cnt < 0)
-        ctx_refill(s);
-}
-
-static unsigned msac_decode_bool_equi_avx2(MsacContext *const s) {
-    ec_win v, vw, dif = s->dif;
-    uint16_t r = s->rng;
-    unsigned ret;
-    assert((dif >> (EC_WIN_BITS - 16)) < r);
-    // When the probability is 1/2, f = 16384 >> EC_PROB_SHIFT = 256 and we can
-    // replace the multiply with a simple shift.
-    v = ((r >> 8) << 7) + EC_MIN_PROB;
-    vw   = v << (EC_WIN_BITS - 16);
-    ret  = dif >= vw;
-    dif -= ret*vw;
-    v   += ret*(r - 2*v);
-    ctx_norm(s, dif, v);
-    return !ret;
-}
-#endif
-
 #define MAX_BYTES (100000)
+
+unsigned dav1d_msac_decode_bool_equi(MsacContext *const s);
 
 static unsigned char buf[MAX_BYTES];
 
@@ -106,10 +55,10 @@ static void check_decode_bool_equi() {
 
     msac_decode_bool_equi_fn decode_bool_equi;
 
-    decode_bool_equi = msac_decode_bool_equi;
-#if ARCH_X86_64
+    decode_bool_equi = msac_decode_bool_equi_c;
+#if !defined(_WIN64) && ARCH_X86_64
     if (dav1d_get_cpu_flags() & DAV1D_X86_CPU_FLAG_AVX2) {
-        decode_bool_equi = msac_decode_bool_equi_avx2;
+        decode_bool_equi = dav1d_msac_decode_bool_equi;
     }
 #endif
 
