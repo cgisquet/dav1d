@@ -108,7 +108,7 @@ unsigned msac_decode_symbol(MsacContext *const s, const uint16_t *const cdf,
     return ret - 1;
 }
 
-unsigned msac_decode_bool_equi(MsacContext *const s) {
+unsigned msac_decode_bool_equi_c(MsacContext *const s) {
     ec_win v, vw, dif = s->dif;
     uint16_t r = s->rng;
     unsigned ret;
