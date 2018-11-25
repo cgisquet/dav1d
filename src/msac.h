@@ -61,18 +61,19 @@ unsigned msac_decode_bool_equi_c(MsacContext *const s);
 unsigned msac_decode_bool_prob_c(MsacContext *s, unsigned f);
 unsigned msac_decode_bool_adapt_c(MsacContext *s, uint16_t *cdf);
 
-#define msac_decode_bool_adapt msac_decode_bool_adapt_c
-
 #if !defined(_WIN64) && HAVE_ASM && ARCH_X86_64
 
 unsigned dav1d_msac_decode_bool_equi(MsacContext *const s);
 unsigned dav1d_msac_decode_bool_prob(MsacContext *const s, const unsigned f);
+unsigned dav1d_msac_decode_bool_adapt(MsacContext *const s, uint16_t *c);
 
 # define msac_decode_bool_equi dav1d_msac_decode_bool_equi
 # define msac_decode_bool_prob dav1d_msac_decode_bool_prob
+# define msac_decode_bool_adapt dav1d_msac_decode_bool_adapt
 #else
 # define msac_decode_bool_equi msac_decode_bool_equi_c
 # define msac_decode_bool_prob msac_decode_bool_prob_c
+# define msac_decode_bool_adapt msac_decode_bool_adapt_c
 #endif
 
 #endif /* __DAV1D_SRC_MSAC_H__ */

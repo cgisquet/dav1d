@@ -31,6 +31,7 @@ struc msac
   .dif: resq 1
   .rng: resd 1
   .cnt: resd 1
+  .upd: resd 1
 endstruc
 
 SECTION .text
@@ -122,5 +123,53 @@ cglobal msac_decode_bool_prob, 2, 6, 0, ctx, prob
                                ;   }
     sub  r4, r5                ;   dif -= tmp;
     msac_norm ctxq, r4, r1d    ;   return msac_norm(s, dif, v, ret);
+                               ; }
+
+cglobal msac_decode_bool_adapt, 2, 8, 0, ctx, cdf
+                               ; unsigned msac_decode_bool_adapt(msac *s,
+                               ;                                uint16_t *cdf) {
+    push rbp
+    push rbx
+    mov rbx, cdfq
+    movzx ecx, byte [cdfq + 2] ;   int count = cdf[1];
+    cmp ecx, 31                ;   cdf[1] += count < 32;
+    setle al
+    add byte [cdfq + 2], al
+    shr ecx, 4                 ;   int rate = (count >> 4) | 4;
+    or  ecx, 4
+    mov ebp, 1                 ;   int adapt = ((1 << rate) - 1) - 32768
+    shl ebp, cl
+    sub ebp, 0x8001
+    movzx esi, word [cdfq]     ;   unsigned p = cdf[0] >> EC_PROB_SHIFT;;
+    shr esi, 6
+    mov edx, [ctxq + msac.rng] ;   unsigned r = s->rng;
+    movzx eax, dh
+    imul  esi, eax             ;   ec_win v = ((r >> 8) * p >> 1) + EC_MIN_PROB;
+    shr esi, 1
+    add esi, 4
+    mov R10d, esi              ;   ec_win vw = v << (EC_WIN_BITS - 16);
+    shl R10, 48
+    sub edx, esi               ;   unsigned new_v = r - v;
+    xor eax, eax               ;   unsigned ret = 0;
+    xor  R9, R9                ;   ec_win tmp = 0;
+    mov  R8, [ctxq + msac.dif] ;   ec_win dif = s->dif;
+    cmp  R8, R10               ;   if (dif >= vw) {
+    cmovae ebp, eax            ;     adapt = 0;
+    cmovae esi, edx            ;     v = new_v
+    cmovae R9, R10             ;     tmp = vw;
+    setb al                    ;     ret = 1;
+                               ;   }
+    sub R8, R9                 ;   dif -= tmp;
+    mov edx, [ctxq + msac.upd]
+    test edx, edx
+    jz .no_adapt               ;   if (s->upd) {
+    movsx edx, word [rbx]      ;     cdf[1] -= (cdf[1] + adapt) >> rate;
+    add   edx, ebp
+    sar   edx, cl
+    sub word [rbx], dx
+.no_adapt:                     ;   }
+    pop   rbx
+    pop   rbp
+    msac_norm ctxq, R8, esi    ;   return msac_norm(s, dif, v, ret);
                                ; }
 %endif

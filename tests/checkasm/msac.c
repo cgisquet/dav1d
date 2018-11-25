@@ -36,11 +36,16 @@ typedef decl_msac_decode_bool_equi_fn(*msac_decode_bool_equi_fn);
 unsigned (name)(MsacContext *const s, unsigned f)
 typedef decl_msac_decode_bool_prob_fn(*msac_decode_bool_prob_fn);
 
+#define decl_msac_decode_bool_adapt_fn(name) \
+unsigned (name)(MsacContext *const s, uint16_t *c)
+typedef decl_msac_decode_bool_adapt_fn(*msac_decode_bool_adapt_fn);
+
 #define MAX_BYTES (100000)
 #define MAX_BITS  MAX_BYTES
 
 unsigned dav1d_msac_decode_bool_equi(MsacContext *const s);
 unsigned dav1d_msac_decode_bool_prob(MsacContext *const s, const unsigned f);
+unsigned dav1d_msac_decode_bool_adapt(MsacContext *const s, uint16_t *c);
 
 static unsigned char buf[MAX_BYTES];
 static unsigned prob[MAX_BITS];
@@ -141,7 +146,60 @@ static void check_decode_bool_prob() {
     report("decode_bool_prob");
 }
 
+static int cdf2_equal(const uint16_t *const a, const uint16_t *const b) {
+  return a[0] == b[0] && a[1] == b[1];
+}
+
+static void check_decode_bool_adapt() {
+    int i;
+
+    /* Create a random EC segment */
+    for (i = 0; i < MAX_BYTES; i++) {
+        buf[i] = rand() & 0xff;
+    }
+
+    declare_func(unsigned, MsacContext *const s, uint16_t *cdf);
+
+    msac_decode_bool_adapt_fn decode_bool_adapt;
+
+    decode_bool_adapt = msac_decode_bool_adapt_c;
+#if !defined(_WIN64) && ARCH_X86_64
+    if (dav1d_get_cpu_flags() & DAV1D_X86_CPU_FLAG_AVX2) {
+        decode_bool_adapt = dav1d_msac_decode_bool_adapt;
+    }
+#endif
+    if (check_func(decode_bool_adapt, "msac_decode_bool_adapt")) {
+        MsacContext s_ref;
+        MsacContext s_new;
+
+        msac_init(&s_ref, buf, MAX_BYTES, 0);
+        msac_init(&s_new, buf, MAX_BYTES, 0);
+
+        uint16_t c_ref[2] = { 16384, 0 };
+        uint16_t c_new[2] = { 16384, 0 };
+
+        /* Decode MAX_BYTES worth of bits */
+        for (i = 0; i < MAX_BITS; i++) {
+            unsigned ref;
+            unsigned new;
+            ref = call_ref(&s_ref, c_ref);
+            new = call_new(&s_new, c_new);
+            if (ref != new || !cdf2_equal(c_ref, c_new) ||
+                !msac_equal(&s_ref, &s_new)) {
+                fail();
+            }
+        }
+
+        msac_init(&s_new, buf, MAX_BYTES, 0);
+        c_new[0] = 16384;
+        c_new[1] = 0;
+        bench_new(&s_new, c_new);
+    }
+    report("decode_bool_adapt");
+}
+
 void checkasm_check_msac(void) {
     check_decode_bool_equi();
     check_decode_bool_prob();
+    check_decode_bool_adapt();
 }
