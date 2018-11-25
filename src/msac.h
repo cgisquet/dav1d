@@ -53,13 +53,15 @@ unsigned msac_decode_symbol(MsacContext *s, const uint16_t *cdf,
                             const unsigned n_symbols);
 unsigned msac_decode_symbol_adapt(MsacContext *s, uint16_t *cdf,
                                   const unsigned n_symbols);
-unsigned msac_decode_bool_prob(MsacContext *s, unsigned f);
 unsigned msac_decode_bool_adapt(MsacContext *s, uint16_t *cdf);
 unsigned msac_decode_bools(MsacContext *c, unsigned l);
 int msac_decode_subexp(MsacContext *c, int ref, int n, unsigned k);
 int msac_decode_uniform(MsacContext *c, unsigned n);
 
 unsigned msac_decode_bool_equi_c(MsacContext *const s);
+unsigned msac_decode_bool_prob_c(MsacContext *s, unsigned f);
+
+#define msac_decode_bool_prob msac_decode_bool_prob_c
 
 #if !defined(_WIN64) && HAVE_ASM && ARCH_X86_64
 
