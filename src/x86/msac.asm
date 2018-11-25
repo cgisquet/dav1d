@@ -100,4 +100,27 @@ cglobal msac_decode_bool_equi, 1, 6, 0, ctx
     sub  r1, r5                ;   dif -= tmp;
     msac_norm ctxq, r1, r4d    ;   return msac_norm(s, dif, v, ret);
                                ; }
+
+cglobal msac_decode_bool_prob, 2, 6, 0, ctx, prob
+                               ; unsigned msac_decode_bool_prob(msac *s,
+                               ;                                unsigned f) {
+    mov  r4, [ctxq + msac.dif] ;   ec_win dif = s->dif;
+    mov r2d, [ctxq + msac.rng] ;   unsigned r = s->rng;
+    movzx r3d, r2h             ;   ec_win v = ((r >> 8) * f >> 1) + EC_MIN_PROB;
+    imul r1d, r3d
+    shr r1d, 1
+    add r1d, 4
+    mov r3d, r1d
+    shl r3, 48                 ;   ec_win vw = v << (EC_WIN_BITS - 16);
+    sub r2d, r1d               ;   unsigned new_v = r - v;
+    xor r5, r5                 ;   ec_win tmp = 0;
+    xor r6d, r6d               ;   unsigned ret = 0;
+    cmp r4, r3                 ;   if (dif >= vw) {
+    setb r6b                   ;     ret = 1;
+    cmovae r1d, r2d            ;     v = new_v
+    cmovae r5, r3              ;     tmp = vw;
+                               ;   }
+    sub  r4, r5                ;   dif -= tmp;
+    msac_norm ctxq, r4, r1d    ;   return msac_norm(s, dif, v, ret);
+                               ; }
 %endif
