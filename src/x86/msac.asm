@@ -38,24 +38,21 @@ SECTION .text
 
 %if UNIX64
 %macro ctx_refill 0            ; unsigned ctx_refill(msac *s, unsigned ret) {
-    mov rsi, [rdi + msac.dif]  ;   ec_win dif = s->dif;
     mov rdx, [rdi + msac.pos]  ;   const uint8_t *pos = s->pos;
-    mov  R8, [rdi + msac.end]  ;   const uint8_t *end = s->end;
+    mov rsi, [rdi + msac.end]  ;   const uint8_t *end = s->end;
     mov ecx, 40                ;   int c = EC_WIN_BITS - s->cnt - 24;
     sub ecx, [rdi + msac.cnt]
-    js .skip                   ;   if (c >= 0) {
 .loop:
-    cmp  rdx, R8               ;     while (buf_pos < buf_end) {
+    cmp  rdx, rsi              ;   while (buf_pos < buf_end) {
     jae .done
-    movzx R9d, byte [rdx]      ;       dif ^= ((ec_win)*buf_pos++) << c;
+    movzx R9d, byte [rdx]      ;     dif ^= ((ec_win)*buf_pos++) << c;
     inc rdx
     shl  R9, cl
-    xor rsi, R9
-    sub ecx, 8                 ;       c -= 8;
-    jns .loop                  ;       if (c < 0) break;
-.done:                         ;     }
-.skip:                         ;   }
-    mov [rdi + msac.dif], rsi  ;   s->dif = dif;
+    xor R8, R9
+    sub ecx, 8                 ;     c -= 8;
+    jns .loop                  ;     if (c < 0) break;
+.done:                         ;   }
+    mov [rdi + msac.dif], R8   ;   s->dif = dif;
     mov [rdi + msac.pos], rdx  ;   s->pos = pos;
     mov edx, 40                ;   s->cnt = EC_WIN_BITS - c - 24;
     sub edx, ecx
