@@ -80,6 +80,7 @@ SECTION .text
     movzx esi, dh              ;   ec_win v = ((r >> 8) << 7) + EC_MIN_PROB;
     shl esi, 7
 %else                          ; #else
+    shr esi, 6                 ;   p >>= EC_PROB_SHIFT;
     movzx eax, dh              ;   ec_win v = ((r >> 8) * p >> 1) + EC_MIN_PROB;
     imul  esi, eax
     shr esi, 1
@@ -119,7 +120,6 @@ cglobal msac_decode_bool, 2, 8, 0, ctx, cdf
                                ; unsigned msac_decode_bool(msac *s,
                                ;                           uint16_t *cdf) {
     movzx esi, word [cdfq]     ;   unsigned p = cdf[0] >> EC_PROB_SHIFT;
-    shr esi, 6
     ctx_decode_bool 0, 0       ;   unsigned ret = ctx_decode_bool(s, p);
     ctx_norm                   ;   return ctx_norm(s, dif, v, ret);
                                ; }
@@ -137,8 +137,7 @@ cglobal msac_decode_bool_adapt, 2, 10, 0, ctx, cdf
     mov R11d, 1                ;   int adapt = ((1 << rate) - 1) - 32768
     shl R11d, cl
     sub R11d, 0x8001
-    movzx esi, word [cdfq]     ;   unsigned p = cdf[0] >> EC_PROB_SHIFT;;
-    shr esi, 6
+    movzx esi, word [cdfq]     ;   unsigned p = cdf[0];
     ctx_decode_bool 0, 1       ;   unsigned ret = ctx_decode_bool(s, p);
     mov edx, [ctxq + msac.upd]
     test edx, edx
