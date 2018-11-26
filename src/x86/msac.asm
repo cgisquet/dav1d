@@ -37,7 +37,21 @@ endstruc
 SECTION .text
 
 %if UNIX64
-%macro ctx_refill 0            ; unsigned ctx_refill(msac *s, unsigned ret) {
+%macro ctx_norm 0              ; unsigned ctx_norm(msac *s, ec_win dif,
+                               ;                   unsigned rng, unsigned ret) {
+    bsr edx, esi               ;   const uint16_t d = 15 - (31 ^ clz(rng));
+    mov ecx, 15
+    sub ecx, edx
+    inc R8                     ;   s->dif = ((dif + 1) << d) - 1;
+    shl R8, cl
+    dec R8
+    mov [rdi + msac.dif], R8
+    shl esi, cl                ;   s->rng = rng << d;
+    mov [rdi + msac.rng], esi
+    sub [rdi + msac.cnt], ecx  ;   s->cnt -= d;
+    js .refill                 ;   if (s->cnt >= 0) {
+    RET                        ;     return ret;
+.refill:                       ;   }
     mov rdx, [rdi + msac.pos]  ;   const uint8_t *pos = s->pos;
     mov rsi, [rdi + msac.end]  ;   const uint8_t *end = s->end;
     mov ecx, 40                ;   int c = EC_WIN_BITS - s->cnt - 24;
@@ -58,24 +72,6 @@ SECTION .text
     sub edx, ecx
     mov [rdi + msac.cnt], edx
     RET                        ;   return ret;
-%endmacro                      ; }
-
-%macro ctx_norm 0              ; unsigned ctx_norm(msac *s, ec_win dif,
-                               ;                   unsigned rng, unsigned ret) {
-    bsr edx, esi               ;   const uint16_t d = 15 - (31 ^ clz(rng));
-    mov ecx, 15
-    sub ecx, edx
-    inc R8                     ;   s->dif = ((dif + 1) << d) - 1;
-    shl R8, cl
-    dec R8
-    mov [rdi + msac.dif], R8
-    shl esi, cl                ;   s->rng = rng << d;
-    mov [rdi + msac.rng], esi
-    sub [rdi + msac.cnt], ecx  ;   s->cnt -= d;
-    js .refill                 ;   if (s->cnt >= 0) {
-    RET                        ;     return ret;
-.refill:                       ;   }
-    ctx_refill                 ;   return ctx_refill(s, ret);
 %endmacro                      ; }
 
 %macro ctx_decode_bool 2       ; unsigned ctx_decode_bool(msac *s, unsigned p) {
