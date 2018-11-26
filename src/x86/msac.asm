@@ -37,52 +37,52 @@ endstruc
 SECTION .text
 
 %if UNIX64
-%macro msac_refill 1           ; unsigned ctx_refill(msac *s, unsigned ret) {
-    mov  r1, [%1 + msac.dif]   ;   ec_win dif = s->dif;
-    mov  r2, [%1 + msac.pos]   ;   const uint8_t *pos = s->pos;
-    mov  r4, [%1 + msac.end]   ;   const uint8_t *end = s->end;
-    mov r3d, 40                ;   int c = EC_WIN_BITS - s->cnt - 24;
-    sub r3d, [%1 + msac.cnt]
+%macro ctx_refill 0            ; unsigned ctx_refill(msac *s, unsigned ret) {
+    mov rsi, [rdi + msac.dif]  ;   ec_win dif = s->dif;
+    mov rdx, [rdi + msac.pos]  ;   const uint8_t *pos = s->pos;
+    mov  R8, [rdi + msac.end]  ;   const uint8_t *end = s->end;
+    mov ecx, 40                ;   int c = EC_WIN_BITS - s->cnt - 24;
+    sub ecx, [rdi + msac.cnt]
     js .skip                   ;   if (c >= 0) {
 .loop:
-    cmp  r2, r4                ;     while (buf_pos < buf_end) {
+    cmp  rdx, R8               ;     while (buf_pos < buf_end) {
     jae .done
-    movzx r5d, byte [r2]       ;       dif ^= ((ec_win)*buf_pos++) << c;
-    inc  r2
-    shl  r5, r3b
-    xor  r1, r5
-    sub r3d, 8                 ;       c -= 8;
+    movzx R9d, byte [rdx]      ;       dif ^= ((ec_win)*buf_pos++) << c;
+    inc rdx
+    shl  R9, cl
+    xor rsi, R9
+    sub ecx, 8                 ;       c -= 8;
     jns .loop                  ;       if (c < 0) break;
 .done:                         ;     }
 .skip:                         ;   }
-    mov [%1 + msac.dif], r1    ;   s->dif = dif;
-    mov [%1 + msac.pos], r2    ;   s->pos = pos;
-    mov r2d, 40                ;   s->cnt = EC_WIN_BITS - c - 24;
-    sub r2d, r3d
-    mov [%1 + msac.cnt], r2d
+    mov [rdi + msac.dif], rsi  ;   s->dif = dif;
+    mov [rdi + msac.pos], rdx  ;   s->pos = pos;
+    mov edx, 40                ;   s->cnt = EC_WIN_BITS - c - 24;
+    sub edx, ecx
+    mov [rdi + msac.cnt], edx
     RET                        ;   return ret;
 %endmacro                      ; }
 
-%macro msac_norm 3             ; unsigned ctx_norm(msac *s, ec_win dif,
+%macro ctx_norm 0              ; unsigned ctx_norm(msac *s, ec_win dif,
                                ;                   unsigned rng, unsigned ret) {
-    bsr r2d, %3                ;   const uint16_t d = 15 - (31 ^ clz(rng));
-    mov r3d, 15
-    sub r3d, r2d
-    inc %2                     ;   s->dif = ((dif + 1) << d) - 1;
-    shl %2, r3b
-    dec %2
-    mov [%1 + msac.dif], %2
-    shl %3, r3b                ;   s->rng = rng << d;
-    mov [%1 + msac.rng], %3
-    sub [%1 + msac.cnt], r3d   ;   s->cnt -= d;
+    bsr edx, esi               ;   const uint16_t d = 15 - (31 ^ clz(rng));
+    mov ecx, 15
+    sub ecx, edx
+    inc R8                     ;   s->dif = ((dif + 1) << d) - 1;
+    shl R8, cl
+    dec R8
+    mov [rdi + msac.dif], R8
+    shl esi, cl                ;   s->rng = rng << d;
+    mov [rdi + msac.rng], esi
+    sub [rdi + msac.cnt], ecx  ;   s->cnt -= d;
     js .refill                 ;   if (s->cnt >= 0) {
     RET                        ;     return ret;
 .refill:                       ;   }
-    msac_refill %1             ;   return msac_refill(s, ret);
+    ctx_refill                 ;   return ctx_refill(s, ret);
 %endmacro                      ; }
 
 %macro ctx_decode_bool 2       ; unsigned ctx_decode_bool(msac *s, unsigned p) {
-    mov edx, [ctxq + msac.rng] ;   unsigned r = s->rng;
+    mov edx, [rdi + msac.rng]  ;   unsigned r = s->rng;
 %if %1                         ; #if EQUI
     movzx esi, dh              ;   ec_win v = ((r >> 8) << 7) + EC_MIN_PROB;
     shl esi, 7
@@ -97,7 +97,7 @@ SECTION .text
     sub edx, esi               ;   unsigned new_v = r - v;
     xor eax, eax               ;   unsigned ret = 0;
     xor  R9, R9                ;   ec_win tmp = 0;
-    mov  R8, [ctxq + msac.dif] ;   ec_win dif = s->dif;
+    mov  R8, [rdi + msac.dif]  ;   ec_win dif = s->dif;
     cmp  R8, R10               ;   if (dif >= vw) {
 %if %2                         ; #if ADAPT
     cmovae R11d, eax           ;     adapt = 0;
@@ -112,14 +112,14 @@ SECTION .text
 cglobal msac_decode_bool_equi, 1, 8, 0, ctx
                                ; unsigned msac_decode_bool_equi(msac *s) {
     ctx_decode_bool 1, 0       ;   unsigned ret = ctx_decode_bool(s, 256);
-    msac_norm ctxq, R8, esi    ;   return msac_norm(s, dif, v, ret);
+    ctx_norm                   ;   return ctx_norm(s, dif, v, ret);
                                ; }
 
 cglobal msac_decode_bool_prob, 2, 8, 0, ctx, p
                                ; unsigned msac_decode_bool_prob(msac *s,
                                ;                                unsigned f) {
     ctx_decode_bool 0, 0       ;   unsigned ret = ctx_decode_bool(s, p);
-    msac_norm ctxq, R8, esi    ;   return msac_norm(s, dif, v, ret);
+    ctx_norm                   ;   return ctx_norm(s, dif, v, ret);
                                ; }
 
 cglobal msac_decode_bool, 2, 8, 0, ctx, cdf
@@ -128,7 +128,7 @@ cglobal msac_decode_bool, 2, 8, 0, ctx, cdf
     movzx esi, word [cdfq]     ;   unsigned p = cdf[0] >> EC_PROB_SHIFT;
     shr esi, 6
     ctx_decode_bool 0, 0       ;   unsigned ret = ctx_decode_bool(s, p);
-    msac_norm ctxq, R8, esi    ;   return msac_norm(s, dif, v, ret);
+    ctx_norm                   ;   return ctx_norm(s, dif, v, ret);
                                ; }
 
 cglobal msac_decode_bool_adapt, 2, 10, 0, ctx, cdf
@@ -155,6 +155,6 @@ cglobal msac_decode_bool_adapt, 2, 10, 0, ctx, cdf
     sar   edx, cl
     sub word [rbx], dx
 .no_adapt:                     ;   }
-    msac_norm ctxq, R8, esi    ;   return msac_norm(s, dif, v, ret);
+    ctx_norm                   ;   return ctx_norm(s, dif, v, ret);
                                ; }
 %endif
