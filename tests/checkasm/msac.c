@@ -42,12 +42,12 @@ typedef decl_msac_decode_bool_prob_fn(*msac_decode_bool_prob_fn);
 unsigned (name)(MsacContext *const s, uint16_t *c)
 typedef decl_msac_decode_bool_adapt_fn(*msac_decode_bool_adapt_fn);
 
-#define MAX_BYTES (100000)
-#define MAX_BITS  MAX_BYTES
-
 unsigned dav1d_msac_decode_bool_equi(MsacContext *const s);
 unsigned dav1d_msac_decode_bool_prob(MsacContext *const s, const unsigned f);
 unsigned dav1d_msac_decode_bool_adapt(MsacContext *const s, uint16_t *c);
+
+#define MAX_BYTES (100000)
+#define MAX_BITS  MAX_BYTES
 
 static unsigned char buf[MAX_BYTES];
 static unsigned prob[MAX_BITS];
@@ -64,11 +64,6 @@ static void print_msac(MsacContext *s, const char *name) {
 
 static void check_decode_bool_equi() {
     int i;
-
-    /* Create a random EC segment */
-    for (i = 0; i < MAX_BYTES; i++) {
-        buf[i] = rand() & 0xff;
-    }
 
     declare_func(unsigned, MsacContext *const s);
 
@@ -107,16 +102,6 @@ static void check_decode_bool_equi() {
 
 static void check_decode_bool_prob() {
     int i;
-
-    /* Create a random EC segment */
-    for (i = 0; i < MAX_BYTES; i++) {
-        buf[i] = rand() & 0xff;
-    }
-
-    /* Create a random set of probabilities */
-    for (i = 0; i < MAX_BITS; i++) {
-        prob[i] = (rand() % 0x1ff) + 1;
-    }
 
     declare_func(unsigned, MsacContext *const s, const unsigned f);
 
@@ -163,11 +148,6 @@ static void print_cdf2(const uint16_t *const c, const char *name) {
 
 static void check_decode_bool_no_adapt() {
     int i;
-
-    /* Create a random EC segment */
-    for (i = 0; i < MAX_BYTES; i++) {
-        buf[i] = rand() & 0xff;
-    }
 
     declare_func(unsigned, MsacContext *const s, uint16_t *cdf);
 
@@ -218,11 +198,6 @@ static void check_decode_bool_no_adapt() {
 static void check_decode_bool_adapt() {
     int i;
 
-    /* Create a random EC segment */
-    for (i = 0; i < MAX_BYTES; i++) {
-        buf[i] = rand() & 0xff;
-    }
-
     declare_func(unsigned, MsacContext *const s, uint16_t *cdf);
 
     msac_decode_bool_adapt_fn decode_bool_adapt;
@@ -269,7 +244,22 @@ static void check_decode_bool_adapt() {
     report("decode_bool_adapt");
 }
 
+static void check_init() {
+    int i;
+
+    /* Create a random EC segment */
+    for (i = 0; i < MAX_BYTES; i++) {
+        buf[i] = rand() & 0xff;
+    }
+
+    /* Create a random set of probabilities */
+    for (i = 0; i < MAX_BITS; i++) {
+        prob[i] = (rand() % 0x1ff) + 1;
+    }
+}
+
 void checkasm_check_msac(void) {
+    check_init();
     check_decode_bool_equi();
     check_decode_bool_prob();
     check_decode_bool_no_adapt();
