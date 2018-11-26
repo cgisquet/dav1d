@@ -81,59 +81,16 @@ SECTION .text
     msac_refill %1             ;   return msac_refill(s, ret);
 %endmacro                      ; }
 
-cglobal msac_decode_bool_equi, 1, 6, 0, ctx
-                               ; unsigned msac_decode_bool_equi(msac *s) {
-    mov  r1, [ctxq + msac.dif] ;   ec_win dif = s->dif;
-    mov r2d, [ctxq + msac.rng] ;   unsigned r = s->rng;
-    movzx r3d, r2h             ;   ec_win v = ((r >> 8) << 7) + EC_MIN_PROB;
-    shl r3d, 7
-    add r3d, 4
-    mov r4d, r3d
-    shl  r3, 48                ;   ec_win vw = v << (EC_WIN_BITS - 16);
-    xor  r5, r5                ;   ec_win tmp = 0;
-    xor r6d, r6d               ;   unsigned ret = 0;
-    sub r2d, r4d               ;   unsigned new_v = r - v;
-    cmp  r1, r3                ;   if (dif >= vw) {
-    setb r6b                   ;     ret = 1;
-    cmovae r4d, r2d            ;     v = new_v;
-    cmovae r5, r3              ;     tmp = vw;
-                               ;   }
-    sub  r1, r5                ;   dif -= tmp;
-    msac_norm ctxq, r1, r4d    ;   return msac_norm(s, dif, v, ret);
-                               ; }
-
-cglobal msac_decode_bool_prob, 2, 6, 0, ctx, prob
-                               ; unsigned msac_decode_bool_prob(msac *s,
-                               ;                                unsigned f) {
-    mov  r4, [ctxq + msac.dif] ;   ec_win dif = s->dif;
-    mov r2d, [ctxq + msac.rng] ;   unsigned r = s->rng;
-    movzx r3d, r2h             ;   ec_win v = ((r >> 8) * f >> 1) + EC_MIN_PROB;
-    imul r1d, r3d
-    shr r1d, 1
-    add r1d, 4
-    mov r3d, r1d
-    shl r3, 48                 ;   ec_win vw = v << (EC_WIN_BITS - 16);
-    sub r2d, r1d               ;   unsigned new_v = r - v;
-    xor r5, r5                 ;   ec_win tmp = 0;
-    xor r6d, r6d               ;   unsigned ret = 0;
-    cmp r4, r3                 ;   if (dif >= vw) {
-    setb r6b                   ;     ret = 1;
-    cmovae r1d, r2d            ;     v = new_v
-    cmovae r5, r3              ;     tmp = vw;
-                               ;   }
-    sub  r4, r5                ;   dif -= tmp;
-    msac_norm ctxq, r4, r1d    ;   return msac_norm(s, dif, v, ret);
-                               ; }
-
-cglobal msac_decode_bool, 2, 6, 0, ctx, cdf
-                               ; unsigned msac_decode_bool(msac *s,
-                               ;                           uint16_t *cdf) {
-    movzx esi, word [cdfq]     ;   unsigned p = cdf[0] >> EC_PROB_SHIFT;;
-    shr esi, 6
+%macro ctx_decode_bool 2       ; unsigned ctx_decode_bool(msac *s, unsigned p) {
     mov edx, [ctxq + msac.rng] ;   unsigned r = s->rng;
+%if %1                         ; #if EQUI
+    movzx esi, dh              ;   ec_win v = ((r >> 8) << 7) + EC_MIN_PROB;
+    shl esi, 7
+%else                          ; #else
     movzx eax, dh              ;   ec_win v = ((r >> 8) * p >> 1) + EC_MIN_PROB;
     imul  esi, eax
     shr esi, 1
+%endif                         ; #endif
     add esi, 4
     mov R10d, esi              ;   ec_win vw = v << (EC_WIN_BITS - 16);
     shl R10, 48
@@ -142,11 +99,35 @@ cglobal msac_decode_bool, 2, 6, 0, ctx, cdf
     xor  R9, R9                ;   ec_win tmp = 0;
     mov  R8, [ctxq + msac.dif] ;   ec_win dif = s->dif;
     cmp  R8, R10               ;   if (dif >= vw) {
+%if %2                         ; #if ADAPT
+    cmovae ebp, eax            ;     adapt = 0;
+%endif                         ; #endif
     cmovae esi, edx            ;     v = new_v
     cmovae R9, R10             ;     tmp = vw;
     setb al                    ;     ret = 1;
                                ;   }
     sub R8, R9                 ;   dif -= tmp;
+%endmacro                      ; }
+
+cglobal msac_decode_bool_equi, 1, 8, 0, ctx
+                               ; unsigned msac_decode_bool_equi(msac *s) {
+    ctx_decode_bool 1, 0       ;   unsigned ret = ctx_decode_bool(s, 256);
+    msac_norm ctxq, R8, esi    ;   return msac_norm(s, dif, v, ret);
+                               ; }
+
+cglobal msac_decode_bool_prob, 2, 8, 0, ctx, p
+                               ; unsigned msac_decode_bool_prob(msac *s,
+                               ;                                unsigned f) {
+    ctx_decode_bool 0, 0       ;   unsigned ret = ctx_decode_bool(s, p);
+    msac_norm ctxq, R8, esi    ;   return msac_norm(s, dif, v, ret);
+                               ; }
+
+cglobal msac_decode_bool, 2, 8, 0, ctx, cdf
+                               ; unsigned msac_decode_bool(msac *s,
+                               ;                           uint16_t *cdf) {
+    movzx esi, word [cdfq]     ;   unsigned p = cdf[0] >> EC_PROB_SHIFT;
+    shr esi, 6
+    ctx_decode_bool 0, 0       ;   unsigned ret = ctx_decode_bool(s, p);
     msac_norm ctxq, R8, esi    ;   return msac_norm(s, dif, v, ret);
                                ; }
 
@@ -167,24 +148,7 @@ cglobal msac_decode_bool_adapt, 2, 8, 0, ctx, cdf
     sub ebp, 0x8001
     movzx esi, word [cdfq]     ;   unsigned p = cdf[0] >> EC_PROB_SHIFT;;
     shr esi, 6
-    mov edx, [ctxq + msac.rng] ;   unsigned r = s->rng;
-    movzx eax, dh
-    imul  esi, eax             ;   ec_win v = ((r >> 8) * p >> 1) + EC_MIN_PROB;
-    shr esi, 1
-    add esi, 4
-    mov R10d, esi              ;   ec_win vw = v << (EC_WIN_BITS - 16);
-    shl R10, 48
-    sub edx, esi               ;   unsigned new_v = r - v;
-    xor eax, eax               ;   unsigned ret = 0;
-    xor  R9, R9                ;   ec_win tmp = 0;
-    mov  R8, [ctxq + msac.dif] ;   ec_win dif = s->dif;
-    cmp  R8, R10               ;   if (dif >= vw) {
-    cmovae ebp, eax            ;     adapt = 0;
-    cmovae esi, edx            ;     v = new_v
-    cmovae R9, R10             ;     tmp = vw;
-    setb al                    ;     ret = 1;
-                               ;   }
-    sub R8, R9                 ;   dif -= tmp;
+    ctx_decode_bool 0, 1       ;   unsigned ret = ctx_decode_bool(s, p);
     mov edx, [ctxq + msac.upd]
     test edx, edx
     jz .no_adapt               ;   if (s->upd) {
