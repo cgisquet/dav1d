@@ -100,7 +100,7 @@ SECTION .text
     mov  R8, [ctxq + msac.dif] ;   ec_win dif = s->dif;
     cmp  R8, R10               ;   if (dif >= vw) {
 %if %2                         ; #if ADAPT
-    cmovae ebp, eax            ;     adapt = 0;
+    cmovae R11d, eax           ;     adapt = 0;
 %endif                         ; #endif
     cmovae esi, edx            ;     v = new_v
     cmovae R9, R10             ;     tmp = vw;
@@ -131,11 +131,9 @@ cglobal msac_decode_bool, 2, 8, 0, ctx, cdf
     msac_norm ctxq, R8, esi    ;   return msac_norm(s, dif, v, ret);
                                ; }
 
-cglobal msac_decode_bool_adapt, 2, 8, 0, ctx, cdf
+cglobal msac_decode_bool_adapt, 2, 10, 0, ctx, cdf
                                ; unsigned msac_decode_bool_adapt(msac *s,
                                ;                                uint16_t *cdf) {
-    push rbp
-    push rbx
     mov rbx, cdfq
     movzx ecx, byte [cdfq + 2] ;   int count = cdf[1];
     cmp ecx, 31                ;   cdf[1] += count < 32;
@@ -143,9 +141,9 @@ cglobal msac_decode_bool_adapt, 2, 8, 0, ctx, cdf
     add byte [cdfq + 2], al
     shr ecx, 4                 ;   int rate = (count >> 4) | 4;
     or  ecx, 4
-    mov ebp, 1                 ;   int adapt = ((1 << rate) - 1) - 32768
-    shl ebp, cl
-    sub ebp, 0x8001
+    mov R11d, 1                ;   int adapt = ((1 << rate) - 1) - 32768
+    shl R11d, cl
+    sub R11d, 0x8001
     movzx esi, word [cdfq]     ;   unsigned p = cdf[0] >> EC_PROB_SHIFT;;
     shr esi, 6
     ctx_decode_bool 0, 1       ;   unsigned ret = ctx_decode_bool(s, p);
@@ -153,12 +151,10 @@ cglobal msac_decode_bool_adapt, 2, 8, 0, ctx, cdf
     test edx, edx
     jz .no_adapt               ;   if (s->upd) {
     movsx edx, word [rbx]      ;     cdf[1] -= (cdf[1] + adapt) >> rate;
-    add   edx, ebp
+    add   edx, R11d
     sar   edx, cl
     sub word [rbx], dx
 .no_adapt:                     ;   }
-    pop   rbx
-    pop   rbp
     msac_norm ctxq, R8, esi    ;   return msac_norm(s, dif, v, ret);
                                ; }
 %endif
