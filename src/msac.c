@@ -195,7 +195,7 @@ unsigned msac_decode_symbol_adapt(MsacContext *const c,
     return val;
 }
 
-unsigned msac_decode_bool_adapt(MsacContext *const c, uint16_t *const cdf) {
+unsigned msac_decode_bool_adapt_c(MsacContext *const c, uint16_t *const cdf) {
     const unsigned bit = msac_decode_bool_prob_c(c, *cdf >> EC_PROB_SHIFT);
 
     if(c->allow_update_cdf){
