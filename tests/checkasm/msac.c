@@ -27,6 +27,8 @@
 #include "src/cpu.h"
 #include "tests/checkasm/checkasm.h"
 #include "src/msac.h"
+#include <stdio.h>
+#include <inttypes.h>
 
 #define decl_msac_decode_bool_equi_fn(name) \
 unsigned (name)(MsacContext *const s)
@@ -53,6 +55,11 @@ static unsigned prob[MAX_BITS];
 static int msac_equal(MsacContext *a, MsacContext *b) {
     return a->buf_pos == b->buf_pos && a->buf_end == b->buf_end &&
         a->dif == b->dif && a->rng == b->rng && a->cnt == b->cnt;
+}
+
+static void print_msac(MsacContext *s, const char *name) {
+    printf("%s: pos = %p, end = %p, dif = %" PRIx64 ", rng = %x, cnt = %i\n",
+        name, s->buf_pos, s->buf_end, s->dif, s->rng, s->cnt);
 }
 
 static void check_decode_bool_equi() {
@@ -150,6 +157,64 @@ static int cdf2_equal(const uint16_t *const a, const uint16_t *const b) {
   return a[0] == b[0] && a[1] == b[1];
 }
 
+static void print_cdf2(const uint16_t *const c, const char *name) {
+    printf("%s: cdf[0] = %i, cdf[1] = %i\n", name, c[0], c[1]);
+}
+
+static void check_decode_bool_no_adapt() {
+    int i;
+
+    /* Create a random EC segment */
+    for (i = 0; i < MAX_BYTES; i++) {
+        buf[i] = rand() & 0xff;
+    }
+
+    declare_func(unsigned, MsacContext *const s, uint16_t *cdf);
+
+    msac_decode_bool_adapt_fn decode_bool_adapt;
+
+    decode_bool_adapt = msac_decode_bool_adapt_c;
+#if !defined(_WIN64) && ARCH_X86_64
+    if (dav1d_get_cpu_flags() & DAV1D_X86_CPU_FLAG_AVX2) {
+        decode_bool_adapt = dav1d_msac_decode_bool_adapt;
+    }
+#endif
+    if (check_func(decode_bool_adapt, "msac_decode_bool_no_adapt")) {
+        MsacContext s_ref;
+        MsacContext s_new;
+
+        msac_init(&s_ref, buf, MAX_BYTES, 1);
+        msac_init(&s_new, buf, MAX_BYTES, 1);
+
+        uint16_t c_ref[2] = { 16384, 0 };
+        uint16_t c_new[2] = { 16384, 0 };
+
+        /* Decode MAX_BYTES worth of bits */
+        for (i = 0; i < MAX_BITS; i++) {
+            unsigned ref;
+            unsigned new;
+            ref = call_ref(&s_ref, c_ref);
+            new = call_new(&s_new, c_new);
+            if (ref != new || c_ref[0] != c_new[0] ||
+                !msac_equal(&s_ref, &s_new)) {
+                printf("i = %i, ref = %i, new = %i\n", i, ref, new);
+                print_cdf2(c_ref, "ref");
+                print_cdf2(c_new, "new");
+                print_msac(&s_ref, "ref");
+                print_msac(&s_new, "new");
+                fail();
+                break;
+            }
+        }
+
+        msac_init(&s_new, buf, MAX_BYTES, 1);
+        c_new[0] = 16384;
+        c_new[1] = 0;
+        bench_new(&s_new, c_new);
+    }
+    report("decode_bool_no_adapt");
+}
+
 static void check_decode_bool_adapt() {
     int i;
 
@@ -186,7 +251,13 @@ static void check_decode_bool_adapt() {
             new = call_new(&s_new, c_new);
             if (ref != new || !cdf2_equal(c_ref, c_new) ||
                 !msac_equal(&s_ref, &s_new)) {
+                printf("i = %i, g ref = %i, new = %i\n", i, ref, new);
+                print_cdf2(c_ref, "ref");
+                print_cdf2(c_new, "new");
+                print_msac(&s_ref, "ref");
+                print_msac(&s_new, "new");
                 fail();
+                break;
             }
         }
 
@@ -201,5 +272,6 @@ static void check_decode_bool_adapt() {
 void checkasm_check_msac(void) {
     check_decode_bool_equi();
     check_decode_bool_prob();
+    check_decode_bool_no_adapt();
     check_decode_bool_adapt();
 }
