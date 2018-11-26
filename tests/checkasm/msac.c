@@ -38,12 +38,13 @@ typedef decl_msac_decode_bool_equi_fn(*msac_decode_bool_equi_fn);
 unsigned (name)(MsacContext *const s, unsigned f)
 typedef decl_msac_decode_bool_prob_fn(*msac_decode_bool_prob_fn);
 
-#define decl_msac_decode_bool_adapt_fn(name) \
+#define decl_msac_decode_bool_fn(name) \
 unsigned (name)(MsacContext *const s, uint16_t *c)
-typedef decl_msac_decode_bool_adapt_fn(*msac_decode_bool_adapt_fn);
+typedef decl_msac_decode_bool_fn(*msac_decode_bool_fn);
 
 unsigned dav1d_msac_decode_bool_equi(MsacContext *const s);
 unsigned dav1d_msac_decode_bool_prob(MsacContext *const s, const unsigned f);
+unsigned dav1d_msac_decode_bool(MsacContext *const s, uint16_t *c);
 unsigned dav1d_msac_decode_bool_adapt(MsacContext *const s, uint16_t *c);
 
 #define MAX_BYTES (100000)
@@ -146,20 +147,20 @@ static void print_cdf2(const uint16_t *const c, const char *name) {
     printf("%s: cdf[0] = %i, cdf[1] = %i\n", name, c[0], c[1]);
 }
 
-static void check_decode_bool_no_adapt() {
+static void check_decode_bool() {
     int i;
 
     declare_func(unsigned, MsacContext *const s, uint16_t *cdf);
 
-    msac_decode_bool_adapt_fn decode_bool_adapt;
+    msac_decode_bool_fn decode_bool;
 
-    decode_bool_adapt = msac_decode_bool_adapt_c;
+    decode_bool = msac_decode_bool_adapt_c;
 #if !defined(_WIN64) && ARCH_X86_64
     if (dav1d_get_cpu_flags() & DAV1D_X86_CPU_FLAG_AVX2) {
-        decode_bool_adapt = dav1d_msac_decode_bool_adapt;
+        decode_bool = dav1d_msac_decode_bool;
     }
 #endif
-    if (check_func(decode_bool_adapt, "msac_decode_bool_no_adapt")) {
+    if (check_func(decode_bool, "msac_decode_bool")) {
         MsacContext s_ref;
         MsacContext s_new;
 
@@ -192,7 +193,7 @@ static void check_decode_bool_no_adapt() {
         c_new[1] = 0;
         bench_new(&s_new, c_new);
     }
-    report("decode_bool_no_adapt");
+    report("decode_bool");
 }
 
 static void check_decode_bool_adapt() {
@@ -200,7 +201,7 @@ static void check_decode_bool_adapt() {
 
     declare_func(unsigned, MsacContext *const s, uint16_t *cdf);
 
-    msac_decode_bool_adapt_fn decode_bool_adapt;
+    msac_decode_bool_fn decode_bool_adapt;
 
     decode_bool_adapt = msac_decode_bool_adapt_c;
 #if !defined(_WIN64) && ARCH_X86_64
@@ -262,6 +263,6 @@ void checkasm_check_msac(void) {
     check_init();
     check_decode_bool_equi();
     check_decode_bool_prob();
-    check_decode_bool_no_adapt();
+    check_decode_bool();
     check_decode_bool_adapt();
 }

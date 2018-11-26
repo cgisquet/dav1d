@@ -125,6 +125,31 @@ cglobal msac_decode_bool_prob, 2, 6, 0, ctx, prob
     msac_norm ctxq, r4, r1d    ;   return msac_norm(s, dif, v, ret);
                                ; }
 
+cglobal msac_decode_bool, 2, 6, 0, ctx, cdf
+                               ; unsigned msac_decode_bool(msac *s,
+                               ;                           uint16_t *cdf) {
+    movzx esi, word [cdfq]     ;   unsigned p = cdf[0] >> EC_PROB_SHIFT;;
+    shr esi, 6
+    mov edx, [ctxq + msac.rng] ;   unsigned r = s->rng;
+    movzx eax, dh              ;   ec_win v = ((r >> 8) * p >> 1) + EC_MIN_PROB;
+    imul  esi, eax
+    shr esi, 1
+    add esi, 4
+    mov R10d, esi              ;   ec_win vw = v << (EC_WIN_BITS - 16);
+    shl R10, 48
+    sub edx, esi               ;   unsigned new_v = r - v;
+    xor eax, eax               ;   unsigned ret = 0;
+    xor  R9, R9                ;   ec_win tmp = 0;
+    mov  R8, [ctxq + msac.dif] ;   ec_win dif = s->dif;
+    cmp  R8, R10               ;   if (dif >= vw) {
+    cmovae esi, edx            ;     v = new_v
+    cmovae R9, R10             ;     tmp = vw;
+    setb al                    ;     ret = 1;
+                               ;   }
+    sub R8, R9                 ;   dif -= tmp;
+    msac_norm ctxq, R8, esi    ;   return msac_norm(s, dif, v, ret);
+                               ; }
+
 cglobal msac_decode_bool_adapt, 2, 8, 0, ctx, cdf
                                ; unsigned msac_decode_bool_adapt(msac *s,
                                ;                                uint16_t *cdf) {
