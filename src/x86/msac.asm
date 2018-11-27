@@ -54,6 +54,30 @@ SECTION .text
 .refill:                       ;   }
     mov rdx, [rdi + msac.pos]  ;   const uint8_t *pos = s->pos;
     mov rsi, [rdi + msac.end]  ;   const uint8_t *end = s->end;
+    mov rcx, rsi
+    sub rcx, rdx
+    cmp rcx, 0x8
+    jl .slow                   ;   if (end - pos >= 8) {
+    mov rsi, [rdx]             ;     ec_win tmp = ec_win_read(pos);
+    bswap rsi
+    mov edx, [rdi + msac.cnt]  ;     int shift = (24 + s->cnt) & ~0x7;
+    lea ecx, [rdx + 24]
+    and ecx, ~0x7
+    shr rsi, cl                ;     tmp >>= shift;
+    mov R9, rcx                ;     s->dif ^= tmp << (shift - 16 - s->cnt);
+    sub ecx, 16
+    sub ecx, edx
+    shl rsi, cl
+    xor R8, rsi
+    mov [rdi + msac.dif], R8
+    mov ecx, 64                ;     s->cnt += EC_WIN_BITS - shift;
+    sub ecx, R9d
+    add edx, ecx
+    mov [rdi + msac.cnt], edx
+    shr ecx, 0x3               ;     s->pos += (EC_WIN_BITS - shift) >> 3;
+    add [rdi + msac.pos], ecx
+    RET                        ;     return ret;
+.slow:                         ;   }
     mov ecx, 40                ;   int c = EC_WIN_BITS - s->cnt - 24;
     sub ecx, [rdi + msac.cnt]
 .loop:
