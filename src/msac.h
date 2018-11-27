@@ -59,21 +59,24 @@ unsigned msac_decode_bool_adapt_c(MsacContext *s, uint16_t *cdf);
 unsigned msac_decode_symbol_c(MsacContext *s, const uint16_t *cdf,
                               const unsigned n_symbols);
 
-#define msac_decode_symbol msac_decode_symbol_c
-
 #if HAVE_ASM && ARCH_X86_64
 
 unsigned dav1d_msac_decode_bool_equi(MsacContext *const s);
 unsigned dav1d_msac_decode_bool_prob(MsacContext *const s, const unsigned f);
 unsigned dav1d_msac_decode_bool_adapt(MsacContext *const s, uint16_t *c);
+unsigned dav1d_msac_decode_symbol(MsacContext *s, const uint16_t *cdf,
+                                  const unsigned n_symbols);
 
 # define msac_decode_bool_equi dav1d_msac_decode_bool_equi
 # define msac_decode_bool_prob dav1d_msac_decode_bool_prob
 # define msac_decode_bool_adapt dav1d_msac_decode_bool_adapt
+# define msac_decode_symbol dav1d_msac_decode_symbol
 #else
 # define msac_decode_bool_equi msac_decode_bool_equi_c
 # define msac_decode_bool_prob msac_decode_bool_prob_c
 # define msac_decode_bool_adapt msac_decode_bool_adapt_c
+# define msac_decode_symbol msac_decode_symbol_c
+
 #endif
 
 #endif /* __DAV1D_SRC_MSAC_H__ */

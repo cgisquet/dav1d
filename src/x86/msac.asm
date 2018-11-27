@@ -192,4 +192,31 @@ cglobal msac_decode_bool_adapt, 2, 10, 0, ctx, cdf
     ctx_decode_bool_adapt      ;   unsigned ret = ctx_decode_bool_adapt(s, cdf);
     ctx_norm                   ;   return ctx_norm(s, dif, v, ret);
                                ; }
+
+cglobal msac_decode_symbol, 3, 9, 0, ctx, cdf, n
+    mov ecx, [rdi + msac.rng]  ;   unsigned v = s->rng;
+    movzx eax, ch              ;   unsigned r = v >> 8;
+    mov R9d, eax
+                               ;   ec_win c = s->dif >> (EC_WIN_BITS - 16);
+    movzx R10d, word [rdi + msac.dif + 6]
+    xor rax, rax               ;   unsigned ret = 0;
+.symb:                         ;   do {
+    mov R8d, ecx               ;     u = v;
+    movzx ecx,word [rsi+2*rax] ;     v = r * (cdf[ret++] >> EC_PROB_SHIFT);
+    shr ecx, 6
+    imul ecx, R9d
+    inc eax
+    shr ecx, 1                 ;     v >>= 7 - EC_PROB_SHIFT;
+    dec edx                    ;     n--;
+    lea ecx, [ecx + 4*edx]     ;     v += n << 2;
+    cmp R10d, ecx
+    jl .symb                   ;   } while (c < v);
+    mov esi, R8d
+    sub esi, ecx               ;   v = u - v;
+    mov R8, [rdi + msac.dif]   ;   dif = s->dif - (v << (EC_WIN_BITS - 16));
+    shl rcx, 48
+    sub R8, rcx
+    dec eax                    ;   ret -= 1
+    ctx_norm                   ;   return ctx_norm(s, dif, v, ret);
+                               ; }
 %endif
