@@ -127,6 +127,30 @@ SECTION .text
     sub R8, R9                 ;   dif -= tmp;
 %endmacro                      ; }
 
+%macro ctx_decode_bool_adapt 0 ; unsigned ctx_decode_bool_adapt(msac *s,
+                               ;                                uint16_t *cdf) {
+    mov rbx, rsi
+    movzx ecx, byte [rsi + 2]  ;   int count = cdf[1];
+    cmp ecx, 31                ;   cdf[1] += count < 32;
+    setle al
+    add byte [rsi + 2], al
+    shr ecx, 4                 ;   int rate = (count >> 4) | 4;
+    or  ecx, 4
+    mov R11d, 1                ;   int adapt = ((1 << rate) - 1) - 32768
+    shl R11d, cl
+    sub R11d, 0x8001
+    movzx esi, word [rsi]      ;   unsigned p = cdf[0];
+    ctx_decode_bool 0, 1       ;   unsigned ret = ctx_decode_bool(s, p);
+    mov edx, [rdi + msac.upd]
+    test edx, edx
+    jz .no_adapt               ;   if (s->upd) {
+    movsx edx, word [rbx]      ;     cdf[1] -= (cdf[1] + adapt) >> rate;
+    add   edx, R11d
+    sar   edx, cl
+    sub word [rbx], dx
+.no_adapt:                     ;   }
+%endmacro                      ; }
+
 cglobal msac_decode_bool_equi, 1, 8, 0, ctx
                                ; unsigned msac_decode_bool_equi(msac *s) {
     ctx_decode_bool 1, 0       ;   unsigned ret = ctx_decode_bool(s, 256);
@@ -151,26 +175,7 @@ cglobal msac_decode_bool, 2, 8, 0, ctx, cdf
 cglobal msac_decode_bool_adapt, 2, 10, 0, ctx, cdf
                                ; unsigned msac_decode_bool_adapt(msac *s,
                                ;                                uint16_t *cdf) {
-    mov rbx, cdfq
-    movzx ecx, byte [cdfq + 2] ;   int count = cdf[1];
-    cmp ecx, 31                ;   cdf[1] += count < 32;
-    setle al
-    add byte [cdfq + 2], al
-    shr ecx, 4                 ;   int rate = (count >> 4) | 4;
-    or  ecx, 4
-    mov R11d, 1                ;   int adapt = ((1 << rate) - 1) - 32768
-    shl R11d, cl
-    sub R11d, 0x8001
-    movzx esi, word [cdfq]     ;   unsigned p = cdf[0];
-    ctx_decode_bool 0, 1       ;   unsigned ret = ctx_decode_bool(s, p);
-    mov edx, [ctxq + msac.upd]
-    test edx, edx
-    jz .no_adapt               ;   if (s->upd) {
-    movsx edx, word [rbx]      ;     cdf[1] -= (cdf[1] + adapt) >> rate;
-    add   edx, R11d
-    sar   edx, cl
-    sub word [rbx], dx
-.no_adapt:                     ;   }
+    ctx_decode_bool_adapt      ;   unsigned ret = ctx_decode_bool_adapt(s, cdf);
     ctx_norm                   ;   return ctx_norm(s, dif, v, ret);
                                ; }
 %endif
