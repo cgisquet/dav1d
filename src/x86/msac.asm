@@ -36,7 +36,7 @@ endstruc
 
 SECTION .text
 
-%if UNIX64
+%if ARCH_X86_64
 %macro ctx_norm 0              ; unsigned ctx_norm(msac *s, ec_win dif,
                                ;                   unsigned rng, unsigned ret) {
     bsr edx, esi               ;   const uint16_t d = 15 - (31 ^ clz(rng));
@@ -151,22 +151,32 @@ SECTION .text
 .no_adapt:                     ;   }
 %endmacro                      ; }
 
-cglobal msac_decode_bool_equi, 1, 8, 0, ctx
+cglobal msac_decode_bool_equi, 1, 9, 0, ctx
                                ; unsigned msac_decode_bool_equi(msac *s) {
+%if WIN64
+    mov rdi, ctxq
+%endif
     ctx_decode_bool 1, 0       ;   unsigned ret = ctx_decode_bool(s, 256);
     ctx_norm                   ;   return ctx_norm(s, dif, v, ret);
                                ; }
 
-cglobal msac_decode_bool_prob, 2, 8, 0, ctx, p
+cglobal msac_decode_bool_prob, 2, 9, 0, ctx, p
                                ; unsigned msac_decode_bool_prob(msac *s,
                                ;                                unsigned f) {
+%if WIN64
+    mov rdi, ctxq
+    mov rsi, pq
+%endif
     ctx_decode_bool 0, 0       ;   unsigned ret = ctx_decode_bool(s, p);
     ctx_norm                   ;   return ctx_norm(s, dif, v, ret);
                                ; }
 
-cglobal msac_decode_bool, 2, 8, 0, ctx, cdf
+cglobal msac_decode_bool, 2, 9, 0, ctx, cdf
                                ; unsigned msac_decode_bool(msac *s,
                                ;                           uint16_t *cdf) {
+%if WIN64
+    mov rdi, ctxq
+%endif
     movzx esi, word [cdfq]     ;   unsigned p = cdf[0] >> EC_PROB_SHIFT;
     ctx_decode_bool 0, 0       ;   unsigned ret = ctx_decode_bool(s, p);
     ctx_norm                   ;   return ctx_norm(s, dif, v, ret);
@@ -175,6 +185,10 @@ cglobal msac_decode_bool, 2, 8, 0, ctx, cdf
 cglobal msac_decode_bool_adapt, 2, 10, 0, ctx, cdf
                                ; unsigned msac_decode_bool_adapt(msac *s,
                                ;                                uint16_t *cdf) {
+%if WIN64
+    mov rdi, ctxq
+    mov rsi, cdfq
+%endif
     ctx_decode_bool_adapt      ;   unsigned ret = ctx_decode_bool_adapt(s, cdf);
     ctx_norm                   ;   return ctx_norm(s, dif, v, ret);
                                ; }

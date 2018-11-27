@@ -71,7 +71,7 @@ static void check_decode_bool_equi() {
     msac_decode_bool_equi_fn decode_bool_equi;
 
     decode_bool_equi = msac_decode_bool_equi_c;
-#if !defined(_WIN64) && ARCH_X86_64
+#if ARCH_X86_64
     if (dav1d_get_cpu_flags() & DAV1D_X86_CPU_FLAG_AVX2) {
         decode_bool_equi = dav1d_msac_decode_bool_equi;
     }
@@ -109,7 +109,7 @@ static void check_decode_bool_prob() {
     msac_decode_bool_prob_fn decode_bool_prob;
 
     decode_bool_prob = msac_decode_bool_prob_c;
-#if !defined(_WIN64) && ARCH_X86_64
+#if ARCH_X86_64
     if (dav1d_get_cpu_flags() & DAV1D_X86_CPU_FLAG_AVX2) {
         decode_bool_prob = dav1d_msac_decode_bool_prob;
     }
@@ -155,7 +155,7 @@ static void check_decode_bool() {
     msac_decode_bool_fn decode_bool;
 
     decode_bool = msac_decode_bool_adapt_c;
-#if !defined(_WIN64) && ARCH_X86_64
+#if ARCH_X86_64
     if (dav1d_get_cpu_flags() & DAV1D_X86_CPU_FLAG_AVX2) {
         decode_bool = dav1d_msac_decode_bool;
     }
@@ -204,7 +204,7 @@ static void check_decode_bool_adapt() {
     msac_decode_bool_fn decode_bool_adapt;
 
     decode_bool_adapt = msac_decode_bool_adapt_c;
-#if !defined(_WIN64) && ARCH_X86_64
+#if ARCH_X86_64
     if (dav1d_get_cpu_flags() & DAV1D_X86_CPU_FLAG_AVX2) {
         decode_bool_adapt = dav1d_msac_decode_bool_adapt;
     }

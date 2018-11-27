@@ -59,7 +59,7 @@ unsigned msac_decode_bool_equi_c(MsacContext *const s);
 unsigned msac_decode_bool_prob_c(MsacContext *s, unsigned f);
 unsigned msac_decode_bool_adapt_c(MsacContext *s, uint16_t *cdf);
 
-#if !defined(_WIN64) && HAVE_ASM && ARCH_X86_64
+#if HAVE_ASM && ARCH_X86_64
 
 unsigned dav1d_msac_decode_bool_equi(MsacContext *const s);
 unsigned dav1d_msac_decode_bool_prob(MsacContext *const s, const unsigned f);
