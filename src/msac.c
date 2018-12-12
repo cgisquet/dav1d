@@ -39,7 +39,7 @@
 
 #define EC_WIN_BITS (EC_WIN_SIZE << 3)
 
-static inline ec_win ec_win_read(const uint8_t *const buf) {
+static inline ec_win NO_SANITIZE("alignment") ec_win_read(const uint8_t *const buf) {
 #if EC_WIN_SIZE == 4
     return hton32(*(ec_win *)buf);
 #else

@@ -101,6 +101,15 @@
 #    define unlikely(p) (!!(p))
 #endif
 
+#if defined(__has_attribute)
+#if __has_attribute(no_sanitize)
+#define NO_SANITIZE(what) __attribute__((no_sanitize(what)))
+#endif
+#endif
+#if !defined(NO_SANITIZE)
+#define NO_SANITIZE(what)
+#endif
+
  #ifdef _MSC_VER
  #include <intrin.h>
 
