@@ -187,8 +187,9 @@ static void update_cdf(uint16_t *const cdf, const unsigned val,
     cdf[n_symbols] = count + (count < 32);
 }
 
-unsigned msac_decode_symbol_adapt(MsacContext *const c,
-                                  uint16_t *const cdf, const unsigned n_symbols)
+unsigned msac_decode_symbol_adapt_c(MsacContext *const c,
+                                    uint16_t *const cdf,
+                                    const unsigned n_symbols)
 {
     const unsigned val = msac_decode_symbol(c, cdf, n_symbols);
     if(c->allow_update_cdf)
