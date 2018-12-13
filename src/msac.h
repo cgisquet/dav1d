@@ -47,8 +47,6 @@ typedef struct MsacContext {
 } MsacContext;
 
 void msac_init(MsacContext *c, const uint8_t *data, size_t sz, int disable_cdf_update_flag);
-unsigned msac_decode_symbol(MsacContext *s, const uint16_t *cdf,
-                            const unsigned n_symbols);
 unsigned msac_decode_symbol_adapt(MsacContext *s, uint16_t *cdf,
                                   const unsigned n_symbols);
 unsigned msac_decode_bools(MsacContext *c, unsigned l);
@@ -58,6 +56,10 @@ int msac_decode_uniform(MsacContext *c, unsigned n);
 unsigned msac_decode_bool_equi_c(MsacContext *const s);
 unsigned msac_decode_bool_prob_c(MsacContext *s, unsigned f);
 unsigned msac_decode_bool_adapt_c(MsacContext *s, uint16_t *cdf);
+unsigned msac_decode_symbol_c(MsacContext *s, const uint16_t *cdf,
+                              const unsigned n_symbols);
+
+#define msac_decode_symbol msac_decode_symbol_c
 
 #if HAVE_ASM && ARCH_X86_64
 

@@ -87,8 +87,8 @@ static inline void ctx_norm(MsacContext *s, ec_win dif, uint32_t rng) {
 
 /* Decodes a symbol given an inverse cumulative distribution function (CDF)
  * table in Q15. */
-unsigned msac_decode_symbol(MsacContext *const s, const uint16_t *const cdf,
-                            const unsigned n_symbols)
+unsigned msac_decode_symbol_c(MsacContext *const s, const uint16_t *const cdf,
+                              const unsigned n_symbols)
 {
     ec_win u, v = s->rng, r = s->rng >> 8;
     const ec_win c = s->dif >> (EC_WIN_BITS - 16);
