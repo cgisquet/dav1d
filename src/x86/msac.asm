@@ -233,4 +233,38 @@ cglobal msac_decode_symbol, 3, 9, 0, ctx, cdf, n
     ctx_decode_symbol          ;   ret = ctx_decode_symbol(s, cdf, n);
     ctx_norm                   ;   return ctx_norm(s, dif, v, ret);
                                ; }
+
+cglobal msac_decode_symbol_adapt, 3, 11, 0, ctx, cdf, n
+                               ; unsigned msac_decode_symbol_adapt(msac *s,
+                               ;                                   uint16_t *cdf,
+                               ;                                   unsigned n) {
+    mov rbx, rsi
+    mov rbp, rdx
+    ctx_decode_symbol
+    movzx ecx,byte [rbx+2*rbp] ;   int count = cdf[n];
+    cmp ecx, 31                ;   cdf[n] += count < 32;
+    setle dl
+    add byte [rbx + 2*rbp], dl
+    shr ecx, 4                 ;   int rate = ((count >> 4) | 4) + (n > 3);
+    or  ecx, 4
+    cmp ebp, 4
+    sbb ecx, -1
+    mov edx, 1                 ;   int adapt = ((1 << rate) - 1) - 32768
+    shl edx, cl
+    sub edx, 0x8001
+    xor R11d, R11d             ;   int tmp = 0;
+    jmp .start
+.adapt:                        ;   do {
+    cmp rax, rbp               ;     if (ret >= n) {
+    cmova R11d, edx            ;       tmp = adapt;
+                               ;     }
+    movsx R9d,word [rbx+2*rbp] ;     cdf[n] -= (cdf[n] + adapt) >> rate;
+    add   R9d, R11d
+    sar   R9d, cl
+    sub word [rbx + 2*rbp], R9w
+.start:
+    dec rbp                    ;     n--;
+    jns .adapt                 ;   } while (n >= 0);
+    ctx_norm                   ;   return ctx_norm(s, dif, v, ret);
+                               ; }
 %endif
