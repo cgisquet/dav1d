@@ -159,6 +159,7 @@ static int decode_coefs(Dav1dTileContext *const t,
     }
 
     // base tokens
+    uint16_t next[32*32], last = 0xFFFF;
     uint16_t (*const br_cdf)[5] =
         ts->cdf.coef.br_tok[imin(t_dim->ctx, 3)][chroma];
     const int16_t *const scan = dav1d_scans[tx][tx_class];
@@ -175,10 +176,14 @@ static int decode_coefs(Dav1dTileContext *const t,
 
         { // eob
             const int rc = scan[eob], x = rc >> shift, y = rc & mask;
+            next[rc] = 0xFFFF;
 
             const int ctx = 1 + (eob > sw * sh * 2) + (eob > sw * sh * 4);
             uint16_t *const lo_cdf = ts->cdf.coef.eob_base_tok[t_dim->ctx][chroma][ctx];
             int tok = dav1d_msac_decode_symbol_adapt4(&ts->msac, lo_cdf, 3) + 1;
+            if (!tok)
+                goto acs;
+            last = rc;
             lvl[x * stride + y] = tok;
             if (dbg)
                 printf("Post-lo_tok[%d][%d][%d][%d=%d=%d]: r=%d\n",
@@ -201,6 +206,7 @@ static int decode_coefs(Dav1dTileContext *const t,
             cf[rc] = tok;
             levels[x * stride + y] = (uint8_t) tok;
         }
+acs:
         for (int i = eob - 1; i > 0; i--) { // ac
             const int rc = scan[i], x = rc >> shift, y = rc & mask;
 
@@ -212,8 +218,10 @@ static int decode_coefs(Dav1dTileContext *const t,
                 printf("Post-lo_tok[%d][%d][%d][%d=%d=%d]: r=%d\n",
                        t_dim->ctx, chroma, ctx, i, rc, tok, ts->msac.rng);
 
-			if (!tok) continue;
-			lvl[x * stride + y] = tok;
+            if (!tok) continue;
+            next[rc] = last;
+            last = rc;
+            lvl[x * stride + y] = tok;
 
             // hi tok
             if (tok == 3) {
@@ -239,6 +247,9 @@ static int decode_coefs(Dav1dTileContext *const t,
                 ctx = get_coef_nz_ctx(lvl, tx, tx_class, 0, 0, stride);
             uint16_t *const lo_cdf = base_tok[ctx];
             dc_tok = dav1d_msac_decode_symbol_adapt4(&ts->msac, lo_cdf, 4);
+            if (!dc_tok)
+                goto dequant;
+
             if (dbg)
                 printf("Post-dc_lo_tok[%d][%d][%d][%d]: r=%d\n",
                        t_dim->ctx, chroma, ctx, dc_tok, ts->msac.rng);
@@ -260,6 +271,9 @@ static int decode_coefs(Dav1dTileContext *const t,
     } else { // dc-only
         uint16_t *const lo_cdf = ts->cdf.coef.eob_base_tok[t_dim->ctx][chroma][0];
         dc_tok = dav1d_msac_decode_symbol_adapt4(&ts->msac, lo_cdf, 3) + 1;
+        if (!dc_tok)
+            goto dequant;
+
         if (dbg)
             printf("Post-dc_lo_tok[%d][%d][%d][%d]: r=%d\n",
                    t_dim->ctx, chroma, 0, dc_tok, ts->msac.rng);
@@ -279,6 +293,8 @@ static int decode_coefs(Dav1dTileContext *const t,
     }
 
     // residual and sign
+dequant:
+    ; //pedantic much ?
     int dc_sign = 1 << 6;
     const int lossless = f->frame_hdr->segmentation.lossless[b->seg_id];
     const uint16_t *const dq_tbl = ts->dq[b->seg_id][plane];
@@ -312,23 +328,21 @@ static int decode_coefs(Dav1dTileContext *const t,
         dc_tok = ((dq * dc_tok) & 0xffffff) >> dq_shift;
         cf[0] = imin(dc_tok - sign, cf_max) ^ -sign;
     }
-    for (int i = 1; i <= eob; i++) { // ac
-        const int rc = scan[i];
+    for (int rc = last; rc != 0xFFFF; rc = next[rc]) {
         int tok = cf[rc];
-        if (!tok) continue;
 
         // sign
         const int sign = dav1d_msac_decode_bool_equi(&ts->msac);
         const unsigned dq = (dq_tbl[1] * qm_tbl[rc] + 16) >> 5;
         if (dbg)
-            printf("Post-sign[%d=%d=%d]: r=%d\n", i, rc, sign, ts->msac.rng);
+            printf("Post-sign[%d=%d]: r=%d\n", rc, sign, ts->msac.rng);
 
         // residual
         if (tok == 15) {
             tok += read_golomb(&ts->msac);
             if (dbg)
-                printf("Post-residual[%d=%d=%d->%d]: r=%d\n",
-                       i, rc, tok - 15, tok, ts->msac.rng);
+            printf("Post-residual[%d=%d->%d]: r=%d\n",
+                   rc, tok - 15, tok, ts->msac.rng);
 
             // coefficient parsing, see 5.11.39
             tok &= 0xfffff;
