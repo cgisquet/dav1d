@@ -165,6 +165,7 @@ static int decode_coefs(Dav1dTileContext *const t,
     }
 
     // base tokens
+    uint16_t next[32*32], last = 0xFFFF;
     uint16_t (*const br_cdf)[5] =
         ts->cdf.coef.br_tok[imin(t_dim->ctx, 3)][chroma];
     const int16_t *const scan = dav1d_scans[tx][tx_class];
@@ -177,11 +178,13 @@ static int decode_coefs(Dav1dTileContext *const t,
 
     uint16_t (*const eob_base_tok)[4] = ts->cdf.coef.eob_base_tok[t_dim->ctx][chroma];
     int rc = scan[eob], x = rc >> shift, y = rc & mask;
+    next[rc] = 0xFFFF;
 
     // lo tok
     int ctx = get_coef_nz_ctx(lvl, eob, rc, 1, tx, tx_class);
     int tok = dav1d_msac_decode_symbol_adapt4(&ts->msac, eob_base_tok[ctx], 3) + 1;
     if (!tok) goto other_coeffs;
+    last = rc;
     lvl[x * stride + y] = tok;
 
     // hi tok
@@ -214,6 +217,8 @@ other_coeffs: ; //Fuck you, C
         printf("Post-lo_tok[%d][%d][%d][%d=%d=%d]: r=%d\n",
                t_dim->ctx, chroma, ctx, i, rc, tok, ts->msac.rng);
         if (!tok) continue;
+        next[rc] = last;
+        last = rc;
         lvl[x * stride + y] = tok;
 
         // hi tok
@@ -244,15 +249,13 @@ other_coeffs: ; //Fuck you, C
     const int bitdepth = BITDEPTH == 8 ? 8 : f->cur.p.bpc;
     const int cf_min = -(1 << (7 + bitdepth));
     const int cf_max = (1 << (7 + bitdepth)) - 1;
-    for (int i = 0; i <= eob; i++) {
-        const int rc = scan[i];
+    for (int rc = last; rc != 0xFFFF; rc = next[rc]) {
         int tok = cf[rc];
-        if (!tok) continue;
         int dq;
 
         // sign
         int sign;
-        if (i == 0) {
+        if (rc == 0) {
             const int dc_sign_ctx = get_dc_sign_ctx(t_dim, a, l);
             uint16_t *const dc_sign_cdf =
                 ts->cdf.coef.dc_sign[chroma][dc_sign_ctx];
@@ -265,7 +268,7 @@ other_coeffs: ; //Fuck you, C
         } else {
             sign = dav1d_msac_decode_bool_equi(&ts->msac);
             if (dbg)
-            printf("Post-sign[%d=%d=%d]: r=%d\n", i, rc, sign, ts->msac.rng);
+            printf("Post-sign[%d=%d]: r=%d\n", rc, sign, ts->msac.rng);
             dq = (dq_tbl[1] * qm_tbl[rc] + 16) >> 5;
         }
 
@@ -273,8 +276,8 @@ other_coeffs: ; //Fuck you, C
         if (tok == 15) {
             tok += read_golomb(&ts->msac);
             if (dbg)
-            printf("Post-residual[%d=%d=%d->%d]: r=%d\n",
-                   i, rc, tok - 15, tok, ts->msac.rng);
+            printf("Post-residual[%d=%d->%d]: r=%d\n",
+                   rc, tok - 15, tok, ts->msac.rng);
         }
 
         // coefficient parsing, see 5.11.39
