@@ -322,10 +322,14 @@ dequant:
                        dc_tok - 15, dc_tok, ts->msac.rng);
 
             dc_tok &= 0xfffff;
+            cul_level += dc_tok;
+            dc_tok = ((dq * dc_tok) & 0xffffff) >> dq_shift;
+        } else {
+            cul_level += dc_tok;
+            dc_tok *= dq;
+            dc_tok >>= dq_shift;
         }
 
-        cul_level += dc_tok;
-        dc_tok = ((dq * dc_tok) & 0xffffff) >> dq_shift;
         cf[0] = imin(dc_tok - sign, cf_max) ^ -sign;
     }
     for (int rc = last; rc != 0xFFFF; rc = next[rc]) {
@@ -346,11 +350,16 @@ dequant:
 
             // coefficient parsing, see 5.11.39
             tok &= 0xfffff;
+
+            // dequant, see 7.12.3
+            cul_level += tok;
+            tok = ((dq * tok) & 0xffffff) >> dq_shift;
+        } else {
+            cul_level += tok;
+            tok *= dq;
+            tok >>= dq_shift;
         }
 
-        // dequant, see 7.12.3
-        cul_level += tok;
-        tok = ((dq * tok) & 0xffffff) >> dq_shift;
         cf[rc] = imin(tok - sign, cf_max) ^ -sign;
     }
 
