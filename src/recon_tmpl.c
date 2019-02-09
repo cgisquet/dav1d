@@ -275,18 +275,24 @@ other_coeffs: ; //Fuck you, C
         // residual
         if (tok == 15) {
             tok += read_golomb(&ts->msac);
+
+            // coefficient parsing, see 5.11.39
+            tok &= 0xfffff;
+
+            // dequant, see 7.12.3
+            cul_level += tok;
+            tok = (((int64_t)dq * tok) & 0xffffff) >> dq_shift;
+            cf[rc] = iclip(sign ? -tok : tok, cf_min, cf_max);
+
             if (dbg)
             printf("Post-residual[%d=%d->%d]: r=%d\n",
                    rc, tok - 15, tok, ts->msac.rng);
+        } else {
+            cul_level += tok;
+            tok *= dq;
+            tok >>= dq_shift;
+            cf[rc] = sign ? -tok : tok;
         }
-
-        // coefficient parsing, see 5.11.39
-        tok &= 0xfffff;
-
-        // dequant, see 7.12.3
-        cul_level += tok;
-        tok = (((int64_t)dq * tok) & 0xffffff) >> dq_shift;
-        cf[rc] = iclip(sign ? -tok : tok, cf_min, cf_max);
     }
 
     // context
