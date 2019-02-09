@@ -598,11 +598,16 @@ static int decode_coefs(Dav1dTileContext *const t,
                        dc_tok - 15, dc_tok, ts->msac.rng);
 
             dc_tok &= 0xfffff;
+            cul_level += dc_tok;
+            dc_tok = ((dq * dc_tok) & 0xffffff) >> dq_shift;
+            cf[0] = imin(dc_tok - sign, cf_max) ^ -sign;
+        } else {
+            cul_level += dc_tok;
+            dc_tok *= dq;
+            dc_tok >>= dq_shift;
+            cf[0] = (dc_tok - sign) ^ -sign;
         }
 
-        cul_level += dc_tok;
-        dc_tok = ((dq * dc_tok) & 0xffffff) >> dq_shift;
-        cf[0] = imin(dc_tok - sign, cf_max) ^ -sign;
     }
     while (--rcpos >= t->scratch.ac) { // ac
         int tok = *rcpos;
@@ -623,12 +628,18 @@ static int decode_coefs(Dav1dTileContext *const t,
 
             // coefficient parsing, see 5.11.39
             tok &= 0xfffff;
+
+            // dequant, see 7.12.3
+            cul_level += tok;
+            tok = ((dq * tok) & 0xffffff) >> dq_shift;
+            cf[rc] = imin(tok - sign, cf_max) ^ -sign;
+        } else {
+            cul_level += tok;
+            tok *= dq;
+            tok >>= dq_shift;
+            cf[rc] = (tok - sign) ^ -sign;
         }
 
-        // dequant, see 7.12.3
-        cul_level += tok;
-        tok = ((dq * tok) & 0xffffff) >> dq_shift;
-        cf[rc] = imin(tok - sign, cf_max) ^ -sign;
     }
 
     // context
