@@ -1696,10 +1696,14 @@ static int motion_field_projection(AV1_COMMON *cm, MV_REFERENCE_FRAME ref_frame,
 
   int ref_frame_index =
       cm->buffer_pool.frame_bufs[ref_frame_idx].cur_frame_offset;
+  int cur_frame_index = cm->cur_frame.cur_frame_offset;
+  int ref_to_cur = get_relative_dist(cm, ref_frame_index, cur_frame_index);
+  if (dir == 2) ref_to_cur = -ref_to_cur;
+  if (abs(ref_to_cur) > MAX_FRAME_DISTANCE)
+    return 1;
+
   unsigned int *ref_rf_idx =
       &cm->buffer_pool.frame_bufs[ref_frame_idx].ref_frame_offset[0];
-   int cur_frame_index = cm->cur_frame.cur_frame_offset;
-  int ref_to_cur = get_relative_dist(cm, ref_frame_index, cur_frame_index);
 
   for (MV_REFERENCE_FRAME rf = LAST_FRAME; rf <= INTER_REFS_PER_FRAME; ++rf) {
     ref_offset[rf] =
@@ -1708,8 +1712,6 @@ static int motion_field_projection(AV1_COMMON *cm, MV_REFERENCE_FRAME ref_frame,
     ref_sign[rf] =
         get_relative_dist(cm, ref_rf_idx[rf - LAST_FRAME], ref_frame_index) < 0;
   }
-
-  if (dir == 2) ref_to_cur = -ref_to_cur;
 
   MV_REF *mv_ref_base = cm->buffer_pool.frame_bufs[ref_frame_idx].mvs;
   const ptrdiff_t mv_stride =
@@ -1749,8 +1751,7 @@ static int motion_field_projection(AV1_COMMON *cm, MV_REFERENCE_FRAME ref_frame,
         const int ref_frame_offset = ref_offset[mv_ref->ref_frame[diridx]];
 
         int pos_valid = abs(ref_frame_offset) <= MAX_FRAME_DISTANCE &&
-                        ref_frame_offset > 0 &&
-                        abs(ref_to_cur) <= MAX_FRAME_DISTANCE;
+                        ref_frame_offset > 0;
 
         if (pos_valid) {
           get_mv_projection(&this_mv.as_mv, fwd_mv, ref_to_cur,
