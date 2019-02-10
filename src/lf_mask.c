@@ -309,11 +309,11 @@ void dav1d_create_lf_mask_intra(Av1Filter *const lflvl,
 
     if (bw4 && bh4) {
         uint8_t (*level_cache_ptr)[4] = level_cache + by * b4_stride + bx;
+#define SET(a) ((union alias16*)&(level_cache_ptr[a][0]))->u16 = l.u16
+        const union alias16 l = { .u8 = { filter_level[0][0][0], filter_level[1][0][0] } };
         for (int y = 0; y < bh4; y++) {
-            for (int x = 0; x < bw4; x++) {
-                level_cache_ptr[x][0] = filter_level[0][0][0];
-                level_cache_ptr[x][1] = filter_level[1][0][0];
-            }
+            for (int x = 0; x < bw4; x++)
+                SET(x);
             level_cache_ptr += b4_stride;
         }
 
@@ -336,11 +336,11 @@ void dav1d_create_lf_mask_intra(Av1Filter *const lflvl,
 
     uint8_t (*level_cache_ptr)[4] =
         level_cache + (by >> ss_ver) * b4_stride + (bx >> ss_hor);
+    level_cache_ptr = (uint8_t (*)[4])&level_cache_ptr[0][2];
+    const union alias16 l = { .u8 = { filter_level[2][0][0], filter_level[3][0][0] } };
     for (int y = 0; y < cbh4; y++) {
-        for (int x = 0; x < cbw4; x++) {
-            level_cache_ptr[x][2] = filter_level[2][0][0];
-            level_cache_ptr[x][3] = filter_level[3][0][0];
-        }
+        for (int x = 0; x < cbw4; x++)
+            SET(x);
         level_cache_ptr += b4_stride;
     }
 
@@ -373,11 +373,10 @@ void dav1d_create_lf_mask_inter(Av1Filter *const lflvl,
 
     if (bw4 && bh4) {
         uint8_t (*level_cache_ptr)[4] = level_cache + by * b4_stride + bx;
+        const union alias16 l = { .u8 = { filter_level[0][0][0], filter_level[1][0][0] } };
         for (int y = 0; y < bh4; y++) {
-            for (int x = 0; x < bw4; x++) {
-                level_cache_ptr[x][0] = filter_level[0][0][0];
-                level_cache_ptr[x][1] = filter_level[1][0][0];
-            }
+            for (int x = 0; x < bw4; x++)
+                SET(x);
             level_cache_ptr += b4_stride;
         }
 
@@ -401,11 +400,11 @@ void dav1d_create_lf_mask_inter(Av1Filter *const lflvl,
 
     uint8_t (*level_cache_ptr)[4] =
         level_cache + (by >> ss_ver) * b4_stride + (bx >> ss_hor);
+    level_cache_ptr = (uint8_t (*)[4])&level_cache_ptr[0][2];
+    const union alias16 l = { .u8 = { filter_level[2][0][0], filter_level[3][0][0] } };
     for (int y = 0; y < cbh4; y++) {
-        for (int x = 0; x < cbw4; x++) {
-            level_cache_ptr[x][2] = filter_level[2][0][0];
-            level_cache_ptr[x][3] = filter_level[3][0][0];
-        }
+        for (int x = 0; x < cbw4; x++)
+            SET(x);
         level_cache_ptr += b4_stride;
     }
 
