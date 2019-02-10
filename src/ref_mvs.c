@@ -1660,10 +1660,14 @@ static int get_proj_and_pos(AV1_COMMON *cm, int *mi_r, int *mi_c, int blk_row,
     const int offset = (mv_row >= 0) ? (mv_row >> (4 + MI_SIZE_LOG2))
                                      : -((-mv_row) >> (4 + MI_SIZE_LOG2));
     row = (sign_bias == 1) ? blk_row - offset : blk_row + offset;
-    if (row < 0 || row >= (cm->mi_rows >> 1))
+    const int base_blk_row = (blk_row >> 3) << 3;
+    if (row < 0 || row >= (cm->mi_rows >> 1) ||
+        row < base_blk_row - (MAX_OFFSET_HEIGHT >> 3) ||
+        row >= base_blk_row + 8 + (MAX_OFFSET_HEIGHT >> 3))
       return 0;
-  } else
+  } else {
     row = blk_row;
+  }
 
   if (ref.col) {
     int mv_col = ROUND_POWER_OF_TWO_SIGNED(ref.col * num * div_mult[den], 14);
@@ -1671,19 +1675,14 @@ static int get_proj_and_pos(AV1_COMMON *cm, int *mi_r, int *mi_c, int blk_row,
     const int offset = (mv_col >= 0) ? (mv_col >> (4 + MI_SIZE_LOG2))
                                     : -((-mv_col) >> (4 + MI_SIZE_LOG2));
     col = (sign_bias == 1) ? blk_col - offset : blk_col + offset;
-    if (col < 0 || col >= (cm->mi_cols >> 1))
+    const int base_blk_col = (blk_col >> 3) << 3;
+    if (col < 0 || col >= (cm->mi_cols >> 1) ||
+        col < base_blk_col - (MAX_OFFSET_WIDTH >> 3) ||
+        col >= base_blk_col + 8 + (MAX_OFFSET_WIDTH >> 3))
       return 0;
-  } else
+  } else {
     col = blk_col;
-
-  const int base_blk_row = (blk_row >> 3) << 3;
-  const int base_blk_col = (blk_col >> 3) << 3;
-
-  if (row < base_blk_row - (MAX_OFFSET_HEIGHT >> 3) ||
-      row >= base_blk_row + 8 + (MAX_OFFSET_HEIGHT >> 3) ||
-      col < base_blk_col - (MAX_OFFSET_WIDTH >> 3) ||
-      col >= base_blk_col + 8 + (MAX_OFFSET_WIDTH >> 3))
-    return 0;
+  }
 
   *mi_r = row;
   *mi_c = col;
