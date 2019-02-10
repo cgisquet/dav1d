@@ -1705,12 +1705,23 @@ static int motion_field_projection(AV1_COMMON *cm, MV_REFERENCE_FRAME ref_frame,
   unsigned int *ref_rf_idx =
       &cm->buffer_pool.frame_bufs[ref_frame_idx].ref_frame_offset[0];
 
+  int ref_use[1*TOTAL_REFS_PER_FRAME+1];
+  int *ref_p = ref_use + 1;
+  ref_p[-1] = ref_p[0] = 0;
   for (MV_REFERENCE_FRAME rf = LAST_FRAME; rf <= INTER_REFS_PER_FRAME; ++rf) {
     ref_offset[rf] =
         get_relative_dist(cm, ref_frame_index, ref_rf_idx[rf - LAST_FRAME]);
     // note the inverted sign
     ref_sign[rf] =
         get_relative_dist(cm, ref_rf_idx[rf - LAST_FRAME], ref_frame_index) < 0;
+    if (!ref_sign[rf])
+      ref_p[rf] = 0;
+    else {
+      int ref_frame_offset = ref_offset[rf];
+      // 1:invalid   2:valid
+      ref_p[rf] = ref_frame_offset > 0 &&
+                  ref_frame_offset <= MAX_FRAME_DISTANCE ? 2 : 1;
+    }
   }
 
   MV_REF *mv_ref_base = cm->buffer_pool.frame_bufs[ref_frame_idx].mvs;
@@ -1730,12 +1741,14 @@ static int motion_field_projection(AV1_COMMON *cm, MV_REFERENCE_FRAME ref_frame,
                                      (blk_col << 1) + 1];
       int diridx;
       const int ref0 = mv_ref->ref_frame[0], ref1 = mv_ref->ref_frame[1];
-      if (ref1 > 0 && ref_sign[ref1] &&
+      if (ref_p[ref1] &&
           abs(mv_ref->mv[1].as_mv.row) < (1 << 12) &&
           abs(mv_ref->mv[1].as_mv.col) < (1 << 12))
       {
+        if (ref_p[ref1] == 1)
+          continue; // invalid
         diridx = 1;
-      } else if (ref0 > 0 && ref_sign[ref0] &&
+      } else if (ref_p[ref0] == 2 &&
                  abs(mv_ref->mv[0].as_mv.row) < (1 << 12) &&
                  abs(mv_ref->mv[0].as_mv.col) < (1 << 12))
       {
@@ -1743,22 +1756,17 @@ static int motion_field_projection(AV1_COMMON *cm, MV_REFERENCE_FRAME ref_frame,
       } else {
         continue;
       }
+
       MV fwd_mv = mv_ref->mv[diridx].as_mv;
 
-      if (mv_ref->ref_frame[diridx] > INTRA_FRAME) {
         int_mv this_mv;
         int mi_r, mi_c;
         const int ref_frame_offset = ref_offset[mv_ref->ref_frame[diridx]];
 
-        int pos_valid = abs(ref_frame_offset) <= MAX_FRAME_DISTANCE &&
-                        ref_frame_offset > 0;
-
-        if (pos_valid) {
           get_mv_projection(&this_mv.as_mv, fwd_mv, ref_to_cur,
                             ref_frame_offset);
-          pos_valid = get_block_position(cm, &mi_r, &mi_c, blk_row, blk_col,
+        int pos_valid = get_block_position(cm, &mi_r, &mi_c, blk_row, blk_col,
                                          this_mv.as_mv, dir >> 1);
-        }
 
         if (pos_valid && mi_c >= (from_x4 >> 1) && mi_c < (to_x4 >> 1)) {
           int mi_offset = mi_r * (cm->mi_stride >> 1) + mi_c;
@@ -1767,7 +1775,6 @@ static int motion_field_projection(AV1_COMMON *cm, MV_REFERENCE_FRAME ref_frame,
           tpl_mvs_base[mi_offset].mfmv0.as_mv.col = fwd_mv.col;
           tpl_mvs_base[mi_offset].ref_frame_offset = ref_frame_offset;
         }
-      }
     }
   }
 
