@@ -1645,23 +1645,39 @@ static void av1_setup_frame_buf_refs(AV1_COMMON *cm) {
 #define MAX_OFFSET_WIDTH 64
 #define MAX_OFFSET_HEIGHT 0
 
-static int get_block_position(AV1_COMMON *cm, int *mi_r, int *mi_c, int blk_row,
-                              int blk_col, MV mv, int sign_bias) {
+static int get_proj_and_pos(AV1_COMMON *cm, int *mi_r, int *mi_c, int blk_row,
+                            int blk_col, MV ref, int sign_bias, int num, int den) {
+  const int clamp_max = MV_UPP - 1;
+  const int clamp_min = MV_LOW + 1;
+  int row, col;
+  den = AOMMIN(den, MAX_FRAME_DISTANCE);
+  num = num > 0 ? AOMMIN(num, MAX_FRAME_DISTANCE)
+                : AOMMAX(num, -MAX_FRAME_DISTANCE);
+  // make sure scale (num/den) is clipped against MAX_FRAME_DISTANCE
+  if (ref.row) {
+    int mv_row = ROUND_POWER_OF_TWO_SIGNED(ref.row * num * div_mult[den], 14);
+    mv_row = (int16_t)clamp(mv_row, clamp_min, clamp_max);
+    const int offset = (mv_row >= 0) ? (mv_row >> (4 + MI_SIZE_LOG2))
+                                     : -((-mv_row) >> (4 + MI_SIZE_LOG2));
+    row = (sign_bias == 1) ? blk_row - offset : blk_row + offset;
+    if (row < 0 || row >= (cm->mi_rows >> 1))
+      return 0;
+  } else
+    row = blk_row;
+
+  if (ref.col) {
+    int mv_col = ROUND_POWER_OF_TWO_SIGNED(ref.col * num * div_mult[den], 14);
+    mv_col = (int16_t)clamp(mv_col, clamp_min, clamp_max);
+    const int offset = (mv_col >= 0) ? (mv_col >> (4 + MI_SIZE_LOG2))
+                                    : -((-mv_col) >> (4 + MI_SIZE_LOG2));
+    col = (sign_bias == 1) ? blk_col - offset : blk_col + offset;
+    if (col < 0 || col >= (cm->mi_cols >> 1))
+      return 0;
+  } else
+    col = blk_col;
+
   const int base_blk_row = (blk_row >> 3) << 3;
   const int base_blk_col = (blk_col >> 3) << 3;
-
-  const int row_offset = (mv.row >= 0) ? (mv.row >> (4 + MI_SIZE_LOG2))
-                                       : -((-mv.row) >> (4 + MI_SIZE_LOG2));
-
-  const int col_offset = (mv.col >= 0) ? (mv.col >> (4 + MI_SIZE_LOG2))
-                                       : -((-mv.col) >> (4 + MI_SIZE_LOG2));
-
-  int row = (sign_bias == 1) ? blk_row - row_offset : blk_row + row_offset;
-  int col = (sign_bias == 1) ? blk_col - col_offset : blk_col + col_offset;
-
-  if (row < 0 || row >= (cm->mi_rows >> 1) || col < 0 ||
-      col >= (cm->mi_cols >> 1))
-    return 0;
 
   if (row < base_blk_row - (MAX_OFFSET_HEIGHT >> 3) ||
       row >= base_blk_row + 8 + (MAX_OFFSET_HEIGHT >> 3) ||
@@ -1759,14 +1775,12 @@ static int motion_field_projection(AV1_COMMON *cm, MV_REFERENCE_FRAME ref_frame,
 
       MV fwd_mv = mv_ref->mv[diridx].as_mv;
 
-      int_mv this_mv;
       int mi_r, mi_c;
       const int ref_frame_offset = ref_offset[mv_ref->ref_frame[diridx]];
 
-      get_mv_projection(&this_mv.as_mv, fwd_mv, ref_to_cur,
-                            ref_frame_offset);
-      int pos_valid = get_block_position(cm, &mi_r, &mi_c, blk_row, blk_col,
-                                       this_mv.as_mv, dir >> 1);
+      int pos_valid = get_proj_and_pos(cm, &mi_r, &mi_c, blk_row, blk_col,
+                                       fwd_mv, dir >> 1, ref_to_cur,
+                                       ref_frame_offset);
 
       if (pos_valid && mi_c >= (from_x4 >> 1) && mi_c < (to_x4 >> 1)) {
         int mi_offset = mi_r * (cm->mi_stride >> 1) + mi_c;
