@@ -1646,16 +1646,13 @@ static void av1_setup_frame_buf_refs(AV1_COMMON *cm) {
 #define MAX_OFFSET_HEIGHT 0
 
 static int get_proj_and_pos(AV1_COMMON *cm, int *mi_r, int *mi_c, int blk_row,
-                            int blk_col, MV ref, int sign_bias, int num, int den) {
+                            int blk_col, MV ref, int sign_bias, int scale) {
   const int clamp_max = MV_UPP - 1;
   const int clamp_min = MV_LOW + 1;
   int row, col;
-  den = AOMMIN(den, MAX_FRAME_DISTANCE);
-  num = num > 0 ? AOMMIN(num, MAX_FRAME_DISTANCE)
-                : AOMMAX(num, -MAX_FRAME_DISTANCE);
   // make sure scale (num/den) is clipped against MAX_FRAME_DISTANCE
   if (ref.row) {
-    int mv_row = ROUND_POWER_OF_TWO_SIGNED(ref.row * num * div_mult[den], 14);
+    int mv_row = ROUND_POWER_OF_TWO_SIGNED(ref.row * scale, 14);
     mv_row = (int16_t)clamp(mv_row, clamp_min, clamp_max);
     const int offset = (mv_row >= 0) ? (mv_row >> (4 + MI_SIZE_LOG2))
                                      : -((-mv_row) >> (4 + MI_SIZE_LOG2));
@@ -1670,7 +1667,7 @@ static int get_proj_and_pos(AV1_COMMON *cm, int *mi_r, int *mi_c, int blk_row,
   }
 
   if (ref.col) {
-    int mv_col = ROUND_POWER_OF_TWO_SIGNED(ref.col * num * div_mult[den], 14);
+    int mv_col = ROUND_POWER_OF_TWO_SIGNED(ref.col * scale, 14);
     mv_col = (int16_t)clamp(mv_col, clamp_min, clamp_max);
     const int offset = (mv_col >= 0) ? (mv_col >> (4 + MI_SIZE_LOG2))
                                     : -((-mv_col) >> (4 + MI_SIZE_LOG2));
@@ -1750,6 +1747,10 @@ static int motion_field_projection(AV1_COMMON *cm, MV_REFERENCE_FRAME ref_frame,
   const int row_end8 = imin(to_y4 >> 1, mvs_rows);
   const int col_start8 = imax((from_x4 - (MAX_OFFSET_WIDTH >> 2)) >> 1, 0);
   const int col_end8 = imin((to_x4 + (MAX_OFFSET_WIDTH >> 2)) >> 1, mvs_cols);
+  int scale[MAX_FRAME_DISTANCE+1];
+  for (int den = 0; den < MAX_FRAME_DISTANCE+1; den++)
+      scale[den] = ref_to_cur * div_mult[den];
+
   for (int blk_row = row_start8; blk_row < row_end8; ++blk_row) {
     for (int blk_col = col_start8; blk_col < col_end8; ++blk_col) {
       MV_REF *mv_ref = &mv_ref_base[((blk_row << 1) + 1) * mv_stride +
@@ -1778,8 +1779,8 @@ static int motion_field_projection(AV1_COMMON *cm, MV_REFERENCE_FRAME ref_frame,
       const int ref_frame_offset = ref_offset[mv_ref->ref_frame[diridx]];
 
       int pos_valid = get_proj_and_pos(cm, &mi_r, &mi_c, blk_row, blk_col,
-                                       fwd_mv, dir >> 1, ref_to_cur,
-                                       ref_frame_offset);
+                                       fwd_mv, dir >> 1,
+                                       scale[ref_frame_offset] );
 
       if (pos_valid && mi_c >= (from_x4 >> 1) && mi_c < (to_x4 >> 1)) {
         int mi_offset = mi_r * (cm->mi_stride >> 1) + mi_c;
