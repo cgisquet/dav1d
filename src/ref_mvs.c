@@ -1759,22 +1759,22 @@ static int motion_field_projection(AV1_COMMON *cm, MV_REFERENCE_FRAME ref_frame,
 
       MV fwd_mv = mv_ref->mv[diridx].as_mv;
 
-        int_mv this_mv;
-        int mi_r, mi_c;
-        const int ref_frame_offset = ref_offset[mv_ref->ref_frame[diridx]];
+      int_mv this_mv;
+      int mi_r, mi_c;
+      const int ref_frame_offset = ref_offset[mv_ref->ref_frame[diridx]];
 
-          get_mv_projection(&this_mv.as_mv, fwd_mv, ref_to_cur,
+      get_mv_projection(&this_mv.as_mv, fwd_mv, ref_to_cur,
                             ref_frame_offset);
-        int pos_valid = get_block_position(cm, &mi_r, &mi_c, blk_row, blk_col,
-                                         this_mv.as_mv, dir >> 1);
+      int pos_valid = get_block_position(cm, &mi_r, &mi_c, blk_row, blk_col,
+                                       this_mv.as_mv, dir >> 1);
 
-        if (pos_valid && mi_c >= (from_x4 >> 1) && mi_c < (to_x4 >> 1)) {
-          int mi_offset = mi_r * (cm->mi_stride >> 1) + mi_c;
+      if (pos_valid && mi_c >= (from_x4 >> 1) && mi_c < (to_x4 >> 1)) {
+        int mi_offset = mi_r * (cm->mi_stride >> 1) + mi_c;
 
-          tpl_mvs_base[mi_offset].mfmv0.as_mv.row = fwd_mv.row;
-          tpl_mvs_base[mi_offset].mfmv0.as_mv.col = fwd_mv.col;
-          tpl_mvs_base[mi_offset].ref_frame_offset = ref_frame_offset;
-        }
+        tpl_mvs_base[mi_offset].mfmv0.as_mv.row = fwd_mv.row;
+        tpl_mvs_base[mi_offset].mfmv0.as_mv.col = fwd_mv.col;
+        tpl_mvs_base[mi_offset].ref_frame_offset = ref_frame_offset;
+      }
     }
   }
 
