@@ -211,7 +211,7 @@ static int decode_coefs(Dav1dTileContext *const t,
 
 other_coeffs: ; //Fuck you, C
     uint16_t (*const base_tok)[5] = ts->cdf.coef.base_tok[t_dim->ctx][chroma];
-    for (int i = eob-1; i >= 0; i--) {
+    for (int i = eob-1; i >= 1; i--) {
         rc = scan[i];
         int x = rc >> shift, y = rc & mask;
 
@@ -243,6 +243,29 @@ other_coeffs: ; //Fuck you, C
 
         cf[rc] = tok;
         levels[x * stride + y] = (uint8_t)tok;
+    }
+
+    if (eob) { // DC case
+        // lo tok
+        ctx = tx_class == TX_CLASS_2D ? 0 : get_coef_nz_ctx(lvl, 0, tx, tx_class);
+        tok = dav1d_msac_decode_symbol_adapt4(&ts->msac, base_tok[ctx], 4);
+        if (tok) {
+            next[0] = last;
+            last = 0;
+
+            // hi tok
+            if (tok == 3) {
+                const int br_ctx = get_br_ctx(levels, 0, tx, tx_class);
+                do {
+                    const int tok_br =
+                        dav1d_msac_decode_symbol_adapt4(&ts->msac, br_cdf[br_ctx], 4);
+                    tok += tok_br;
+                    if (tok_br < 3) break;
+                } while (tok < 15);
+            }
+
+            cf[0] = tok;
+        }
     }
 
     // residual and sign
