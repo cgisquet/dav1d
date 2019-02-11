@@ -1737,7 +1737,7 @@ static int motion_field_projection(AV1_COMMON *cm, MV_REFERENCE_FRAME ref_frame,
   }
 
   MV_REF *mv_ref_base = cm->buffer_pool.frame_bufs[ref_frame_idx].mvs;
-  const ptrdiff_t mv_stride =
+  ptrdiff_t mv_stride =
     cm->buffer_pool.frame_bufs[ref_frame_idx].mv_stride;
   const int mvs_rows = (cm->mi_rows + 1) >> 1;
   const int mvs_cols = (cm->mi_cols + 1) >> 1;
@@ -1751,10 +1751,12 @@ static int motion_field_projection(AV1_COMMON *cm, MV_REFERENCE_FRAME ref_frame,
   for (int den = 0; den < MAX_FRAME_DISTANCE+1; den++)
       scale[den] = ref_to_cur * div_mult[den];
 
-  for (int blk_row = row_start8; blk_row < row_end8; ++blk_row) {
+  mv_ref_base += (2*row_start8+1)*mv_stride+1;
+  mv_stride <<= 1;
+
+  for (int blk_row = row_start8; blk_row < row_end8; ++blk_row, mv_ref_base += mv_stride) {
     for (int blk_col = col_start8; blk_col < col_end8; ++blk_col) {
-      MV_REF *mv_ref = &mv_ref_base[((blk_row << 1) + 1) * mv_stride +
-                                     (blk_col << 1) + 1];
+      MV_REF *mv_ref = &mv_ref_base[blk_col << 1];
       int diridx;
       const int ref0 = mv_ref->ref_frame[0], ref1 = mv_ref->ref_frame[1];
       if (ref_p[ref1] &&
