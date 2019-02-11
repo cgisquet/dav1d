@@ -181,7 +181,12 @@ static int decode_coefs(Dav1dTileContext *const t,
     next[rc] = 0xFFFF;
 
     // lo tok
-    int ctx = get_coef_nz_ctx(lvl, eob, rc, 1, tx, tx_class);
+    int ctx = 0;
+    if (eob) {
+        const int eighth_sz = imin(t_dim->w, 8) * imin(t_dim->h, 8) * 2;
+        ctx = eob <= eighth_sz ? 1 : (eob <= 2*eighth_sz ? 2 : 3);
+    }
+
     int tok = dav1d_msac_decode_symbol_adapt4(&ts->msac, eob_base_tok[ctx], 3) + 1;
     if (!tok) goto other_coeffs;
     last = rc;
@@ -211,7 +216,7 @@ other_coeffs: ; //Fuck you, C
         int x = rc >> shift, y = rc & mask;
 
         // lo tok
-        ctx = get_coef_nz_ctx(lvl, i, rc, 0, tx, tx_class);
+        ctx = get_coef_nz_ctx(lvl, rc, tx, tx_class);
         tok = dav1d_msac_decode_symbol_adapt4(&ts->msac, base_tok[ctx], 4);
         if (dbg)
         printf("Post-lo_tok[%d][%d][%d][%d=%d=%d]: r=%d\n",
