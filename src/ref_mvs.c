@@ -1645,7 +1645,7 @@ static void av1_setup_frame_buf_refs(AV1_COMMON *cm) {
 #define MAX_OFFSET_WIDTH 64
 #define MAX_OFFSET_HEIGHT 0
 
-static int get_proj_and_pos(AV1_COMMON *cm, int *mi_r, int *mi_c, int blk_row,
+static FORCE_INLINE int get_proj_and_pos(AV1_COMMON *cm, int *mi_r, int *mi_c, int blk_row,
                             int blk_col, MV ref, int sign_bias, int scale) {
   const int clamp_max = MV_UPP - 1;
   const int clamp_min = MV_LOW + 1;

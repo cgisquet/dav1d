@@ -219,9 +219,10 @@ static int decode_coefs(Dav1dTileContext *const t,
         }
         for (int i = eob - 1; i > 0; i--) { // ac
             const int rc = scan[i], x = rc >> shift, y = rc & mask;
+            uint8_t *lvlp = lvl + x * stride + y;
 
             // lo tok
-            const int ctx = get_coef_nz_ctx(lvl, tx, tx_class, x, y, stride);
+            const int ctx = get_coef_nz_ctx(lvlp, tx, tx_class, x, y, stride);
             uint16_t *const lo_cdf = base_tok[ctx];
             int tok = dav1d_msac_decode_symbol_adapt4(&ts->msac, lo_cdf, 3);
             if (dbg)
@@ -231,7 +232,7 @@ static int decode_coefs(Dav1dTileContext *const t,
             if (!tok) continue;
             next[rc] = last;
             last = rc;
-            lvl[x * stride + y] = (uint8_t)tok;
+            *lvlp = (uint8_t)tok;
 
             // hi tok
             if (tok == 3) {
