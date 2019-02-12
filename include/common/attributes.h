@@ -88,8 +88,10 @@
  */
 #ifdef _MSC_VER
 #define NOINLINE __declspec(noinline)
+#define FORCE_INLINE __forceinline
 #else /* !_MSC_VER */
 #define NOINLINE __attribute__((noinline))
+#define FORCE_INLINE __attribute__((alwaysinline)) inline
 #endif /* !_MSC_VER */
 
 #if defined(__GNUC__) && !defined(__INTEL_COMPILER) && !defined(__clang__)
