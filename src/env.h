@@ -609,7 +609,7 @@ static inline int get_coef_skip_ctx(const TxfmInfo *const t_dim,
     }
 }
 
-static inline int get_coef_nz_ctx(uint8_t *levels, const int rc,
+static FORCE_INLINE int get_coef_nz_ctx(uint8_t *levels, const int rc,
                                   const enum RectTxfmSize tx,
                                   const enum TxClass tx_class)
 {
