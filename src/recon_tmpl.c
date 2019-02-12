@@ -214,9 +214,10 @@ other_coeffs: ; //Fuck you, C
     for (int i = eob-1; i >= 1; i--) {
         rc = scan[i];
         int x = rc >> shift, y = rc & mask;
+        uint8_t *lvlp = lvl + x * stride + y;
 
         // lo tok
-        ctx = get_coef_nz_ctx(lvl, rc, tx, tx_class);
+        ctx = get_coef_nz_ctx(lvlp, x, y, stride, tx, tx_class);
         tok = dav1d_msac_decode_symbol_adapt4(&ts->msac, base_tok[ctx], 4);
         if (dbg)
         printf("Post-lo_tok[%d][%d][%d][%d=%d=%d]: r=%d\n",
@@ -224,7 +225,7 @@ other_coeffs: ; //Fuck you, C
         if (!tok) continue;
         next[rc] = last;
         last = rc;
-        lvl[x * stride + y] = tok;
+        *lvlp = tok;
 
         // hi tok
         if (tok == 3) {
@@ -247,7 +248,7 @@ other_coeffs: ; //Fuck you, C
 
     if (eob) { // DC case
         // lo tok
-        ctx = tx_class == TX_CLASS_2D ? 0 : get_coef_nz_ctx(lvl, 0, tx, tx_class);
+        ctx = tx_class == TX_CLASS_2D ? 0 : get_coef_nz_ctx(lvl, 0, 0, stride, tx, tx_class);
         tok = dav1d_msac_decode_symbol_adapt4(&ts->msac, base_tok[ctx], 4);
         if (tok) {
             next[0] = last;

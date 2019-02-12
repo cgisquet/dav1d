@@ -609,16 +609,11 @@ static inline int get_coef_skip_ctx(const TxfmInfo *const t_dim,
     }
 }
 
-static FORCE_INLINE int get_coef_nz_ctx(uint8_t *levels, const int rc,
+static FORCE_INLINE int get_coef_nz_ctx(uint8_t *levels, int x, int y,
+                                  const ptrdiff_t stride,
                                   const enum RectTxfmSize tx,
                                   const enum TxClass tx_class)
 {
-    const TxfmInfo *const t_dim = &dav1d_txfm_dimensions[tx];
-
-    const int x = rc >> (2 + imin(t_dim->lh, 3));
-    const int y = rc & (4 * imin(t_dim->h, 8) - 1);
-    const ptrdiff_t stride = 4 * (imin(t_dim->h, 8) + 1);
-    levels += x * stride + y;
     int mag = levels[0 * stride + 1]
             + levels[1 * stride + 0];
     if (tx_class == TX_CLASS_2D) {
