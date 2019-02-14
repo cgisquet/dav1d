@@ -170,6 +170,7 @@ static int decode_coefs(Dav1dTileContext *const t,
         ts->cdf.coef.br_tok[imin(t_dim->ctx, 3)][chroma];
     const scanpos *const scan = dav1d_scanpos[tx][tx_class];
     uint8_t levels[36 * 36], lvl[36*36];
+    uint8_t *lvlp, *levelp;
     ptrdiff_t stride = 4 * (imin(t_dim->h, 8) + 1);
     memset(levels, 0, stride * 4 * (imin(t_dim->w, 8) + 1));
     memset(lvl, 0, stride * 4 * (imin(t_dim->w, 8) + 1));
@@ -192,8 +193,9 @@ static int decode_coefs(Dav1dTileContext *const t,
     lvl[scan[eob].off] = tok;
 
     // hi tok
+    levelp = levels + scan[eob].off;
     if (tok == 3) {
-        const int br_ctx = get_br_ctx(levels, rc, tx, tx_class);
+        const int br_ctx = get_br_ctx(levelp, x, y, rc, stride, tx_class);
         do {
             const int tok_br =
                 dav1d_msac_decode_symbol_adapt4(&ts->msac, br_cdf[br_ctx], 4);
@@ -206,7 +208,8 @@ static int decode_coefs(Dav1dTileContext *const t,
         } while (tok < 15);
     }
 
-    levels[scan[eob].off] = cf[rc] = tok;
+    cf[rc] = tok;
+    *levelp = (uint8_t)tok;
 
 other_coeffs: ; //Fuck you, C
     uint16_t (*const base_tok)[5] = ts->cdf.coef.base_tok[t_dim->ctx][chroma];
@@ -214,7 +217,7 @@ other_coeffs: ; //Fuck you, C
         rc = scan[i].rc;
         x = scan[i].x;
         y = scan[i].y;
-        uint8_t *lvlp = lvl + scan[i].off;
+        lvlp = lvl + scan[i].off;
 
         // lo tok
         ctx = get_coef_nz_ctx(lvlp, x, y, stride, tx, tx_class);
@@ -228,8 +231,9 @@ other_coeffs: ; //Fuck you, C
         *lvlp = tok;
 
         // hi tok
+        levelp = levels + scan[i].off;
         if (tok == 3) {
-            const int br_ctx = get_br_ctx(levels, rc, tx, tx_class);
+            const int br_ctx = get_br_ctx(levelp, x, y, i, stride, tx_class);
             do {
                 const int tok_br = dav1d_msac_decode_symbol_adapt4(&ts->msac,
                                        br_cdf[br_ctx], 4);
@@ -243,7 +247,7 @@ other_coeffs: ; //Fuck you, C
         }
 
         cf[rc] = tok;
-        levels[scan[i].off] = (uint8_t)tok;
+        *levelp = (uint8_t)tok;
     }
 
     if (eob) { // DC case
@@ -256,7 +260,7 @@ other_coeffs: ; //Fuck you, C
 
             // hi tok
             if (tok == 3) {
-                const int br_ctx = get_br_ctx(levels, 0, tx, tx_class);
+                const int br_ctx = get_br_ctx(levels, 0, 0, 0, stride, tx_class);
                 do {
                     const int tok_br =
                         dav1d_msac_decode_symbol_adapt4(&ts->msac, br_cdf[br_ctx], 4);
