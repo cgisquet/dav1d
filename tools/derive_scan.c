@@ -37,7 +37,23 @@ int main(void)
           if (j && !(j&7)) printf("\n%.*s", j/2, "                            ");
           int x = rc >> shift, y = rc & mask;
           int offset = x * stride + y;
-          printf(" {%*i,%*i,%2i,%2i},", psize, rc, psize, offset, x, y);
+          int nz, br;
+          switch (tx_class) {
+          case TX_CLASS_2D:
+            nz = 5*imin(y, 4)+ imin(x, 4); // rc=0=>ctx=0!
+            br = y < 2 && x < 2 ? 7 : 14;
+            break;
+          case TX_CLASS_H:
+            nz = 26 + imin(x, 2)*5;
+            br = x == 0 ? 7 : 14;
+            break;
+          case TX_CLASS_V:
+            nz = 26 + imin(y, 2)*5;
+            br = y == 0 ? 7 : 14;
+            break;
+          }
+          if (!rc) br = 0;
+          printf(" {%*i,%*i,%2i,%2i},", psize, rc, psize, offset, nz, br);
 #else
           printf(" %*i,", psize, rc);
 #endif
