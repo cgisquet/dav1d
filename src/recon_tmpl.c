@@ -168,16 +168,15 @@ static int decode_coefs(Dav1dTileContext *const t,
     uint16_t next[32*32], last = 0xFFFF;
     uint16_t (*const br_cdf)[5] =
         ts->cdf.coef.br_tok[imin(t_dim->ctx, 3)][chroma];
-    const int16_t *const scan = dav1d_scans[tx][tx_class];
+    const scanpos *const scan = dav1d_scanpos[tx][tx_class];
     uint8_t levels[36 * 36], lvl[36*36];
     ptrdiff_t stride = 4 * (imin(t_dim->h, 8) + 1);
     memset(levels, 0, stride * 4 * (imin(t_dim->w, 8) + 1));
     memset(lvl, 0, stride * 4 * (imin(t_dim->w, 8) + 1));
-    const int shift = 2 + imin(t_dim->lh, 3), mask = 4 * imin(t_dim->h, 8) - 1;
     unsigned cul_level = 0;
 
     uint16_t (*const eob_base_tok)[4] = ts->cdf.coef.eob_base_tok[t_dim->ctx][chroma];
-    int rc = scan[eob], x = rc >> shift, y = rc & mask;
+    int rc = scan[eob].rc, x = scan[eob].x, y = scan[eob].y;
     next[rc] = 0xFFFF;
 
     // lo tok
@@ -190,7 +189,7 @@ static int decode_coefs(Dav1dTileContext *const t,
     int tok = dav1d_msac_decode_symbol_adapt4(&ts->msac, eob_base_tok[ctx], 3) + 1;
     if (!tok) goto other_coeffs;
     last = rc;
-    lvl[x * stride + y] = tok;
+    lvl[scan[eob].off] = tok;
 
     // hi tok
     if (tok == 3) {
@@ -207,14 +206,15 @@ static int decode_coefs(Dav1dTileContext *const t,
         } while (tok < 15);
     }
 
-    levels[x * stride + y] = cf[rc] = tok;
+    levels[scan[eob].off] = cf[rc] = tok;
 
 other_coeffs: ; //Fuck you, C
     uint16_t (*const base_tok)[5] = ts->cdf.coef.base_tok[t_dim->ctx][chroma];
     for (int i = eob-1; i >= 1; i--) {
-        rc = scan[i];
-        int x = rc >> shift, y = rc & mask;
-        uint8_t *lvlp = lvl + x * stride + y;
+        rc = scan[i].rc;
+        x = scan[i].x;
+        y = scan[i].y;
+        uint8_t *lvlp = lvl + scan[i].off;
 
         // lo tok
         ctx = get_coef_nz_ctx(lvlp, x, y, stride, tx, tx_class);
@@ -243,7 +243,7 @@ other_coeffs: ; //Fuck you, C
         }
 
         cf[rc] = tok;
-        levels[x * stride + y] = (uint8_t)tok;
+        levels[scan[i].off] = (uint8_t)tok;
     }
 
     if (eob) { // DC case
