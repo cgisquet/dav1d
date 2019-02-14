@@ -609,7 +609,7 @@ static inline int get_coef_skip_ctx(const TxfmInfo *const t_dim,
     }
 }
 
-static FORCE_INLINE int get_coef_nz_ctx(uint8_t *levels, int x, int y,
+static FORCE_INLINE int get_coef_nz_ctx(uint8_t *levels, int nz,
                                   const ptrdiff_t stride,
                                   const enum RectTxfmSize tx,
                                   const enum TxClass tx_class)
@@ -621,12 +621,14 @@ static FORCE_INLINE int get_coef_nz_ctx(uint8_t *levels, int x, int y,
              + levels[1 * stride + 1]
              + levels[2 * stride + 0];
         mag = imin((mag + 1) >> 1, 4);
-        return dav1d_nz_map_ctx_offset[tx][imin(y, 4)][imin(x, 4)] + mag;
+        // [nz] = [imin(y, 4)][imin(x, 4)]
+        return dav1d_nz_map_ctx_offset[tx][nz] + mag;
     } else {
         int s = tx_class==TX_CLASS_V ? 1 : stride;
         mag += levels[2*s] + levels[3*s] + levels[4*s];
         mag = imin((mag + 1) >> 1, 4);
-        return 26 + imin((tx_class == TX_CLASS_V) ? y : x, 2) * 5 + mag;
+        //nz = 26 + imin((tx_class == TX_CLASS_V) ? y : x, 2) * 5
+        return nz + mag;
     }
 }
 
@@ -665,8 +667,8 @@ static inline int get_dc_sign_ctx(const TxfmInfo *const t_dim,
     return s < 0 ? 1 : s > 0 ? 2 : 0;
 }
 
-static inline int get_br_ctx(const uint8_t *levels, int x, int y,
-                             const int rc, const ptrdiff_t stride,
+static inline int get_br_ctx(const uint8_t *levels, int br,
+                             const ptrdiff_t stride,
                              const enum TxClass tx_class)
 {
     static const uint8_t offsets_from_txclass[3][2] = {
@@ -679,20 +681,8 @@ static inline int get_br_ctx(const uint8_t *levels, int x, int y,
     mag = levels[1 * stride + 0] + levels[0 * stride + 1];
     mag += levels[offsets[1] * stride + offsets[0]];
 
-    mag = imin((mag + 1) >> 1, 6);
-    if (rc == 0) return mag;
-    switch (tx_class) {
-    case TX_CLASS_2D:
-        if (y < 2 && x < 2) return mag + 7;
-        break;
-    case TX_CLASS_H:
-        if (x == 0) return mag + 7;
-        break;
-    case TX_CLASS_V:
-        if (y == 0) return mag + 7;
-        break;
-    }
-    return mag + 14;
+    // rc=0=>br=0, else if cond=>br=7 else br=14
+    return br + imin((mag + 1) >> 1, 6);
 }
 
 static inline mv get_gmv_2d(const Dav1dWarpedMotionParams *const gmv,

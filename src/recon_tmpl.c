@@ -177,7 +177,7 @@ static int decode_coefs(Dav1dTileContext *const t,
     unsigned cul_level = 0;
 
     uint16_t (*const eob_base_tok)[4] = ts->cdf.coef.eob_base_tok[t_dim->ctx][chroma];
-    int rc = scan[eob].rc, x = scan[eob].x, y = scan[eob].y;
+    int rc = scan[eob].rc;
     next[rc] = 0xFFFF;
 
     // lo tok
@@ -195,7 +195,7 @@ static int decode_coefs(Dav1dTileContext *const t,
     // hi tok
     levelp = levels + scan[eob].off;
     if (tok == 3) {
-        const int br_ctx = get_br_ctx(levelp, x, y, rc, stride, tx_class);
+        const int br_ctx = get_br_ctx(levelp, scan[eob].br, stride, tx_class);
         do {
             const int tok_br =
                 dav1d_msac_decode_symbol_adapt4(&ts->msac, br_cdf[br_ctx], 4);
@@ -215,12 +215,10 @@ other_coeffs: ; //Fuck you, C
     uint16_t (*const base_tok)[5] = ts->cdf.coef.base_tok[t_dim->ctx][chroma];
     for (int i = eob-1; i >= 1; i--) {
         rc = scan[i].rc;
-        x = scan[i].x;
-        y = scan[i].y;
         lvlp = lvl + scan[i].off;
 
         // lo tok
-        ctx = get_coef_nz_ctx(lvlp, x, y, stride, tx, tx_class);
+        ctx = get_coef_nz_ctx(lvlp, scan[i].nz, stride, tx, tx_class);
         tok = dav1d_msac_decode_symbol_adapt4(&ts->msac, base_tok[ctx], 4);
         if (dbg)
         printf("Post-lo_tok[%d][%d][%d][%d=%d=%d]: r=%d\n",
@@ -233,7 +231,7 @@ other_coeffs: ; //Fuck you, C
         // hi tok
         levelp = levels + scan[i].off;
         if (tok == 3) {
-            const int br_ctx = get_br_ctx(levelp, x, y, i, stride, tx_class);
+            const int br_ctx = get_br_ctx(levelp, scan[i].br, stride, tx_class);
             do {
                 const int tok_br = dav1d_msac_decode_symbol_adapt4(&ts->msac,
                                        br_cdf[br_ctx], 4);
@@ -252,7 +250,7 @@ other_coeffs: ; //Fuck you, C
 
     if (eob) { // DC case
         // lo tok
-        ctx = tx_class == TX_CLASS_2D ? 0 : get_coef_nz_ctx(lvl, 0, 0, stride, tx, tx_class);
+        ctx = tx_class == TX_CLASS_2D ? 0 : get_coef_nz_ctx(lvl, 26, stride, tx, tx_class);
         tok = dav1d_msac_decode_symbol_adapt4(&ts->msac, base_tok[ctx], 4);
         if (tok) {
             next[0] = last;
@@ -260,7 +258,7 @@ other_coeffs: ; //Fuck you, C
 
             // hi tok
             if (tok == 3) {
-                const int br_ctx = get_br_ctx(levels, 0, 0, 0, stride, tx_class);
+                const int br_ctx = get_br_ctx(levels, 0, stride, tx_class);
                 do {
                     const int tok_br =
                         dav1d_msac_decode_symbol_adapt4(&ts->msac, br_cdf[br_ctx], 4);
