@@ -678,7 +678,6 @@ static inline int get_br_ctx(const uint8_t* levels,
     };
     const uint8_t *const offsets = offsets_from_txclass[tx_class];
     int mag;
-    levels += x*stride + y;
     mag = levels[1 * stride + 0] + levels[0 * stride + 1];
     mag += levels[offsets[1] * stride + offsets[0]];
 

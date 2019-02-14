@@ -188,9 +188,10 @@ static int decode_coefs(Dav1dTileContext *const t,
                 printf("Post-lo_tok[%d][%d][%d][%d=%d=%d]: r=%d\n",
                        t_dim->ctx, chroma, ctx, eob, rc, tok, ts->msac.rng);
 
+            uint8_t *levelp = levels + scan[eob].off;
             if (tok == 3) {
                 const int x = scan[eob].x, y = scan[eob].y;
-                const int br_ctx = get_br_ctx(levels, 1, tx_class, x, y, stride);
+                const int br_ctx = get_br_ctx(levelp, 1, tx_class, x, y, stride);
                 do {
                     const int tok_br = dav1d_msac_decode_symbol_adapt4(&ts->msac,
                                            br_cdf[br_ctx], 4);
@@ -204,7 +205,7 @@ static int decode_coefs(Dav1dTileContext *const t,
             }
 
             cf[rc] = tok;
-            levels[scan[eob].off] = (uint8_t) tok;
+            *levelp = (uint8_t) tok;
         }
 acs:
         for (int i = eob - 1; i > 0; i--) { // ac
@@ -225,8 +226,9 @@ acs:
             *lvlp = tok;
 
             // hi tok
+            uint8_t *levelp = levels + scan[i].off;
             if (tok == 3) {
-                const int br_ctx = get_br_ctx(levels, 1, tx_class, x, y, stride);
+                const int br_ctx = get_br_ctx(levelp, 1, tx_class, x, y, stride);
                 do {
                     const int tok_br = dav1d_msac_decode_symbol_adapt4(&ts->msac,
                                            br_cdf[br_ctx], 4);
@@ -240,7 +242,7 @@ acs:
             }
 
             cf[rc] = tok;
-            levels[scan[i].off] = (uint8_t) tok;
+            *levelp = (uint8_t) tok;
         }
         { // dc
             int ctx = 0;
