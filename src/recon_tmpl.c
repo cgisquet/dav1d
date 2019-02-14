@@ -162,7 +162,7 @@ static int decode_coefs(Dav1dTileContext *const t,
     uint16_t next[32*32], last = 0xFFFF;
     uint16_t (*const br_cdf)[5] =
         ts->cdf.coef.br_tok[imin(t_dim->ctx, 3)][chroma];
-    const int16_t *const scan = dav1d_scans[tx][tx_class];
+    const scanpos *const scan = dav1d_scanpos[tx][tx_class];
     int dc_tok;
 
     if (eob) {
@@ -171,11 +171,10 @@ static int decode_coefs(Dav1dTileContext *const t,
         const ptrdiff_t stride = 4 * (sh + 1);
         uint8_t *const lvl = levels + stride * 4 * (sw + 1);
         memset(levels, 0, 2 * stride * 4 * (sw + 1));
-        const int shift = 2 + imin(t_dim->lh, 3), mask = 4 * sh - 1;
         uint16_t (*const base_tok)[5] = ts->cdf.coef.base_tok[t_dim->ctx][chroma];
 
         { // eob
-            const int rc = scan[eob], x = rc >> shift, y = rc & mask;
+            const int rc = scan[eob].rc;
             next[rc] = 0xFFFF;
 
             const int ctx = 1 + (eob > sw * sh * 2) + (eob > sw * sh * 4);
@@ -184,12 +183,13 @@ static int decode_coefs(Dav1dTileContext *const t,
             if (!tok)
                 goto acs;
             last = rc;
-            lvl[x * stride + y] = tok;
+            lvl[scan[eob].off] = tok;
             if (dbg)
                 printf("Post-lo_tok[%d][%d][%d][%d=%d=%d]: r=%d\n",
                        t_dim->ctx, chroma, ctx, eob, rc, tok, ts->msac.rng);
 
             if (tok == 3) {
+                const int x = scan[eob].x, y = scan[eob].y;
                 const int br_ctx = get_br_ctx(levels, 1, tx_class, x, y, stride);
                 do {
                     const int tok_br = dav1d_msac_decode_symbol_adapt4(&ts->msac,
@@ -204,12 +204,12 @@ static int decode_coefs(Dav1dTileContext *const t,
             }
 
             cf[rc] = tok;
-            levels[x * stride + y] = (uint8_t) tok;
+            levels[scan[eob].off] = (uint8_t) tok;
         }
 acs:
         for (int i = eob - 1; i > 0; i--) { // ac
-            const int rc = scan[i], x = rc >> shift, y = rc & mask;
-            uint8_t *lvlp = lvl + x * stride + y;
+            const int rc = scan[i].rc, x = scan[i].x, y = scan[i].y;
+            uint8_t *lvlp = lvl + scan[i].off;
 
             // lo tok
             const int ctx = get_coef_nz_ctx(lvlp, tx, tx_class, x, y, stride);
@@ -240,7 +240,7 @@ acs:
             }
 
             cf[rc] = tok;
-            levels[x * stride + y] = (uint8_t) tok;
+            levels[scan[i].off] = (uint8_t) tok;
         }
         { // dc
             int ctx = 0;
