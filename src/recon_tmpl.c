@@ -281,6 +281,53 @@ other_coeffs: ; //Fuck you, C
     const int bitdepth = BITDEPTH == 8 ? 8 : f->cur.p.bpc;
     const int cf_min = -(1 << (7 + bitdepth));
     const int cf_max = (1 << (7 + bitdepth)) - 1;
+    if (!f->frame_hdr->quant.qm) {
+    for (int rc = last; rc != 0xFFFF; rc = next[rc]) {
+        int tok = cf[rc];
+        int dq;
+
+        // sign
+        int sign;
+        if (rc == 0) {
+            const int dc_sign_ctx = get_dc_sign_ctx(t_dim, a, l);
+            uint16_t *const dc_sign_cdf =
+                ts->cdf.coef.dc_sign[chroma][dc_sign_ctx];
+            sign = dav1d_msac_decode_bool_adapt(&ts->msac, dc_sign_cdf);
+            if (dbg)
+            printf("Post-dc_sign[%d][%d][%d]: r=%d\n",
+                   chroma, dc_sign_ctx, sign, ts->msac.rng);
+            dc_sign = sign ? 0 : 2;
+            dq = dq_tbl[0];
+        } else {
+            sign = dav1d_msac_decode_bool_equi(&ts->msac);
+            if (dbg)
+            printf("Post-sign[%d=%d]: r=%d\n", rc, sign, ts->msac.rng);
+            dq = dq_tbl[1];
+        }
+
+        // residual
+        if (tok == 15) {
+            tok += read_golomb(&ts->msac);
+
+            // coefficient parsing, see 5.11.39
+            tok &= 0xfffff;
+
+            // dequant, see 7.12.3
+            cul_level += tok;
+            tok = (((int64_t)dq * tok) & 0xffffff) >> dq_shift;
+            cf[rc] = iclip(sign ? -tok : tok, cf_min, cf_max);
+
+            if (dbg)
+            printf("Post-residual[%d=%d->%d]: r=%d\n",
+                   rc, tok - 15, tok, ts->msac.rng);
+        } else {
+            cul_level += tok;
+            tok *= dq;
+            tok >>= dq_shift;
+            cf[rc] = sign ? -tok : tok;
+        }
+    }
+    } else {
     for (int rc = last; rc != 0xFFFF; rc = next[rc]) {
         int tok = cf[rc];
         int dq;
@@ -325,6 +372,7 @@ other_coeffs: ; //Fuck you, C
             tok >>= dq_shift;
             cf[rc] = sign ? -tok : tok;
         }
+    }
     }
 
     // context
