@@ -174,6 +174,7 @@ static int decode_coefs(Dav1dTileContext *const t,
     ptrdiff_t stride = 4 * (imin(t_dim->h, 8) + 1);
     memset(levels, 0, stride * 4 * (imin(t_dim->w, 8) + 1));
     memset(lvl, 0, stride * 4 * (imin(t_dim->w, 8) + 1));
+    if (tx_class == TX_CLASS_H) stride = 4 * (imin(t_dim->w, 8) + 1);
     unsigned cul_level = 0;
 
     uint16_t (*const eob_base_tok)[4] = ts->cdf.coef.eob_base_tok[t_dim->ctx][chroma];
@@ -250,7 +251,7 @@ other_coeffs: ; //Fuck you, C
 
     if (eob) { // DC case
         // lo tok
-        ctx = tx_class == TX_CLASS_2D ? 0 : get_coef_nz_ctx(lvl, 26, stride, tx, tx_class);
+        ctx = tx_class == TX_CLASS_2D ? 0 : get_coef_nz_ctx(lvl, 26, stride, 0, 1);
         tok = dav1d_msac_decode_symbol_adapt4(&ts->msac, base_tok[ctx], 4);
         if (tok) {
             next[0] = last;

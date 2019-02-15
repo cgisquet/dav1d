@@ -24,8 +24,10 @@ int main(void)
     do { psize++; num_coeffs /= 10; } while (num_coeffs);
     for (int tx_class = 0; tx_class < num_class; tx_class++) {
       const int16_t *const scan = dav1d_scans[tx][tx_class];
-      const ptrdiff_t stride = 4 * (imin(t_dim->h, 8) + 1);
+      ptrdiff_t stride = 4 * (imin(t_dim->h, 8) + 1);
       const int shift = 2 + imin(t_dim->lh, 3), mask = 4 * imin(t_dim->h, 8) - 1;
+
+      if (tx_class == TX_CLASS_H) stride = 4 * (imin(t_dim->w, 8) + 1);
 
       printf("static const scanpos ALIGN(av1_%s_scanpos_%s[], 32) = {\n",
              SCAN_TYPE[tx_class], TX_SIZES[tx]);
@@ -44,6 +46,7 @@ int main(void)
             br = y < 2 && x < 2 ? 7 : 14;
             break;
           case TX_CLASS_H:
+            offset = y * stride + x;
             nz = 26 + imin(x, 2)*5;
             br = x == 0 ? 7 : 14;
             break;
