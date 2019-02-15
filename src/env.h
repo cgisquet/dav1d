@@ -554,25 +554,22 @@ static inline int get_coef_skip_ctx(const TxfmInfo *const t_dim,
 static FORCE_INLINE int get_coef_nz_ctx(uint8_t *levels,
                                   const enum RectTxfmSize tx,
                                   const enum TxClass tx_class,
-                                  const int nz,
+                                  int nz,
                                   const ptrdiff_t stride)
 {
-    int mag = levels[0 * stride + 1]
+    int mag = levels[0 * stride + 1] + levels[2]
             + levels[1 * stride + 0];
     if (tx_class == TX_CLASS_2D) {
-        mag += levels[0 * stride + 2]
-             + levels[1 * stride + 1]
+        mag += levels[1 * stride + 1]
              + levels[2 * stride + 0];
-        mag = imin((mag + 1) >> 1, 4);
         // [nz] = [imin(y, 4)][imin(x, 4)]
-        return dav1d_nz_map_ctx_offset[tx][nz] + mag;
+        nz = dav1d_nz_map_ctx_offset[tx][nz];
     } else {
-        int s = tx_class==TX_CLASS_V ? 1 : stride;
-        mag += levels[2*s] + levels[3*s] + levels[4*s];
-        mag = imin((mag + 1) >> 1, 4);
+        mag += levels[3] + levels[4];
         //nz = 26 + imin((tx_class == TX_CLASS_V) ? y : x, 2) * 5
-        return nz + mag;
     }
+    mag = imin((mag + 1) >> 1, 4);
+    return nz+mag;
 }
 
 static inline int get_dc_sign_ctx(const TxfmInfo *const t_dim,
@@ -615,15 +612,10 @@ static inline int get_br_ctx(const uint8_t* levels,
                              const int br,
                              const ptrdiff_t stride)
 {
-    static const uint8_t offsets_from_txclass[3][2] = {
-        [TX_CLASS_2D] = { 1, 1 },
-        [TX_CLASS_H]  = { 0, 2 },
-        [TX_CLASS_V]  = { 2, 0 }
-    };
-    const uint8_t *const offsets = offsets_from_txclass[tx_class];
+    int b = -!tx_class;
     int mag;
     mag = levels[1 * stride + 0] + levels[0 * stride + 1];
-    mag += levels[offsets[1] * stride + offsets[0]];
+    mag += levels[(b & stride) + 2 + b];
 
     // rc=0=>br=0, else if cond=>br=7 else br=14
     return br + imin((mag + 1) >> 1, 6);

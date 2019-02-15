@@ -184,10 +184,11 @@ static int decode_coefs(Dav1dTileContext *const t,
     if (eob) {
         uint8_t *const levels = t->scratch.levels;
         const int sw = imin(t_dim->w, 8), sh = imin(t_dim->h, 8);
-        const ptrdiff_t stride = 4 * (sh + 1);
+        ptrdiff_t stride = 4 * (sh + 1);
         uint8_t *const lvl = levels + stride * 4 * (sw + 1);
         memset(levels, 0, 2 * stride * 4 * (sw + 1));
         uint16_t (*const base_tok)[4] = ts->cdf.coef.base_tok[t_dim->ctx][chroma];
+        if (tx_class == TX_CLASS_H) stride = 4 * (sw + 1);
 
         { // eob
             const int rc = scan[eob].rc;
