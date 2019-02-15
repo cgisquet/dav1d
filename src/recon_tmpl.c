@@ -273,7 +273,7 @@ other_coeffs: ; //Fuck you, C
     }
 
     // residual and sign
-    int dc_sign = 1;
+    int dc_sign = 1<<6;
     const int lossless = f->frame_hdr->segmentation.lossless[b->seg_id];
     const uint16_t *const dq_tbl = ts->dq[b->seg_id][plane];
     const uint8_t *const qm_tbl = f->qm[lossless || is_1d || *txtp == IDTX][tx][plane];
@@ -296,7 +296,7 @@ other_coeffs: ; //Fuck you, C
             if (dbg)
             printf("Post-dc_sign[%d][%d][%d]: r=%d\n",
                    chroma, dc_sign_ctx, sign, ts->msac.rng);
-            dc_sign = sign ? 0 : 2;
+            dc_sign = sign ? 0 : 2<<6;
             dq = dq_tbl[0];
         } else {
             sign = dav1d_msac_decode_bool_equi(&ts->msac);
@@ -342,7 +342,7 @@ other_coeffs: ; //Fuck you, C
             if (dbg)
             printf("Post-dc_sign[%d][%d][%d]: r=%d\n",
                    chroma, dc_sign_ctx, sign, ts->msac.rng);
-            dc_sign = sign ? 0 : 2;
+            dc_sign = sign ? 0 : 2<<6;
             dq = (dq_tbl[0] * qm_tbl[0] + 16) >> 5;
         } else {
             sign = dav1d_msac_decode_bool_equi(&ts->msac);
@@ -376,7 +376,7 @@ other_coeffs: ; //Fuck you, C
     }
 
     // context
-    *res_ctx = imin(cul_level, 63) | (dc_sign << 6);
+    *res_ctx = imin(cul_level, 63) | dc_sign;
 
     return eob;
 }
