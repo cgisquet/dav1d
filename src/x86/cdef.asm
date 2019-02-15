@@ -347,8 +347,13 @@ cglobal cdef_filter_%1x%2, 4, 10, 16, 2 * 16 + (%2+4)*%3, \
     jz .top_no_right
     pmovzxbw        m1, [top1q-(%1/2)]
     pmovzxbw        m2, [top2q-(%1/2)]
+%if %1 == 4
+    movu  [px-2*%3-%1], xm1
+    movu  [px-1*%3-%1], xm2
+%else
     movu  [px-2*%3-%1], m1
     movu  [px-1*%3-%1], m2
+%endif
     jmp .top_done
 .top_no_right:
     pmovzxbw        m1, [top1q-%1]
@@ -363,8 +368,13 @@ cglobal cdef_filter_%1x%2, 4, 10, 16, 2 * 16 + (%2+4)*%3, \
     jz .top_no_left_right
     pmovzxbw        m1, [top1q]
     pmovzxbw        m2, [top2q]
+%if %1 == 4
+    mova   [px-2*%3+0], xm1
+    mova   [px-1*%3+0], xm2
+%else
     mova   [px-2*%3+0], m1
     mova   [px-1*%3+0], m2
+%endif
     movd   [px-2*%3-4], xm14
     movd   [px-1*%3-4], xm14
     jmp .top_done
@@ -387,8 +397,13 @@ cglobal cdef_filter_%1x%2, 4, 10, 16, 2 * 16 + (%2+4)*%3, \
     movd [px-1*%3+%1*2], xm14
     jmp .top_done
 .no_top:
+%if %1 == 4
+    movu   [px-2*%3-%1], xm14
+    movu   [px-1*%3-%1], xm14
+%else
     movu   [px-2*%3-%1], m14
     movu   [px-1*%3-%1], m14
+%endif
 .top_done:
 
     ; left
@@ -433,15 +448,23 @@ cglobal cdef_filter_%1x%2, 4, 10, 16, 2 * 16 + (%2+4)*%3, \
     jz .bottom_no_right
     pmovzxbw        m1, [dst8q-(%1/2)]
     pmovzxbw        m2, [dst8q+strideq-(%1/2)]
+%if %1 == 4
+    movu   [px+(%2+0)*%3-%1], xm1
+    movu   [px+(%2+1)*%3-%1], xm2
+%else
     movu   [px+(%2+0)*%3-%1], m1
     movu   [px+(%2+1)*%3-%1], m2
+%endif
     jmp .bottom_done
 .bottom_no_right:
     pmovzxbw        m1, [dst8q-%1]
     pmovzxbw        m2, [dst8q+strideq-%1]
+%if %1 == 4
+    movu  [px+(%2+0)*%3-%1*2], xm1
+    movu  [px+(%2+1)*%3-%1*2], xm2
+%else
     movu  [px+(%2+0)*%3-%1*2], m1
     movu  [px+(%2+1)*%3-%1*2], m2
-%if %1 == 8
     movd  [px+(%2-1)*%3+%1*2], xm14                ; overwritten by previous movu
 %endif
     movd  [px+(%2+0)*%3+%1*2], xm14
@@ -452,8 +475,13 @@ cglobal cdef_filter_%1x%2, 4, 10, 16, 2 * 16 + (%2+4)*%3, \
     jz .bottom_no_left_right
     pmovzxbw        m1, [dst8q]
     pmovzxbw        m2, [dst8q+strideq]
+%if %1 == 4
+    mova   [px+(%2+0)*%3+0], xm1
+    mova   [px+(%2+1)*%3+0], xm2
+%else
     mova   [px+(%2+0)*%3+0], m1
     mova   [px+(%2+1)*%3+0], m2
+%endif
     movd   [px+(%2+0)*%3-4], xm14
     movd   [px+(%2+1)*%3-4], xm14
     jmp .bottom_done
