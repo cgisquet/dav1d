@@ -169,11 +169,12 @@ static int decode_coefs(Dav1dTileContext *const t,
     uint16_t (*const br_cdf)[5] =
         ts->cdf.coef.br_tok[imin(t_dim->ctx, 3)][chroma];
     const scanpos *const scan = dav1d_scanpos[tx][tx_class];
-    uint8_t levels[36 * 36], lvl[36*36];
-    uint8_t *lvlp, *levelp;
     ptrdiff_t stride = 4 * (imin(t_dim->h, 8) + 1);
-    memset(levels, 0, stride * 4 * (imin(t_dim->w, 8) + 1));
-    memset(lvl, 0, stride * 4 * (imin(t_dim->w, 8) + 1));
+    ptrdiff_t size = stride * 4 * (imin(t_dim->w, 8) + 1);
+    uint8_t levels[2 * 36 * 36], *lvl = levels + size;
+    uint8_t *lvlp, *levelp;
+    memset(levels, 0, 2*size);
+
     if (tx_class == TX_CLASS_H) stride = 4 * (imin(t_dim->w, 8) + 1);
     unsigned cul_level = 0;
 
