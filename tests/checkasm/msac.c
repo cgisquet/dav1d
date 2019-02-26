@@ -37,17 +37,20 @@ typedef decl_msac_decode_bool_equi_fn(*msac_decode_bool_equi_fn);
 #define decl_msac_decode_bool_prob_fn(name) \
 unsigned (name)(MsacContext *const s, unsigned f)
 typedef decl_msac_decode_bool_prob_fn(*msac_decode_bool_prob_fn);
-
 #define decl_msac_decode_bool_fn(name) \
 unsigned (name)(MsacContext *const s, uint16_t *c)
 typedef decl_msac_decode_bool_fn(*msac_decode_bool_fn);
+
+#define decl_msac_decode_symbol_fn(name) \
+unsigned (name)(MsacContext *s, const uint16_t *cdf, const unsigned n_symbols)
+typedef decl_msac_decode_symbol_fn(*msac_decode_symbol_fn);
 
 unsigned dav1d_msac_decode_bool_equi(MsacContext *const s);
 unsigned dav1d_msac_decode_bool_prob(MsacContext *const s, const unsigned f);
 unsigned dav1d_msac_decode_bool(MsacContext *const s, uint16_t *c);
 unsigned dav1d_msac_decode_bool_adapt(MsacContext *const s, uint16_t *c);
 
-#define MAX_BYTES (100000)
+#define MAX_BYTES (10000)
 #define MAX_BITS  MAX_BYTES
 
 static unsigned char buf[MAX_BYTES];
@@ -245,6 +248,56 @@ static void check_decode_bool_adapt() {
     report("decode_bool_adapt");
 }
 
+static void check_decode_symbol() {
+    int i;
+
+    declare_func(unsigned, MsacContext *const s, uint16_t *const cdf, const unsigned n);
+
+    msac_decode_symbol_fn decode_symbol;
+
+    decode_symbol = msac_decode_symbol_c;
+#if ARCH_X86_64
+    if (dav1d_get_cpu_flags() & DAV1D_X86_CPU_FLAG_AVX2) {
+        decode_symbol = dav1d_msac_decode_symbol;
+    }
+#endif
+
+    if (check_func(decode_symbol, "msac_decode_symbol")) {
+        MsacContext s_ref;
+        MsacContext s_new;
+
+        msac_init(&s_ref, buf, MAX_BYTES, 0);
+        msac_init(&s_new, buf, MAX_BYTES, 0);
+
+        uint16_t c_ref[4] = { 16384, 0, 0, 0 };
+        uint16_t c_new[4] = { 16384, 0, 0, 0 };
+
+        /* Decode MAX_BYTES worth of bits */
+        for (i = 0; i < MAX_BITS; i++) {
+            unsigned ref;
+            unsigned new;
+            ref = call_ref(&s_ref, c_ref, 4);
+            new = call_new(&s_new, c_new, 4);
+            if (ref != new || !cdf2_equal(c_ref, c_new) ||
+                !msac_equal(&s_ref, &s_new)) {
+                printf("i = %i, g ref = %i, new = %i\n", i, ref, new);
+                print_cdf2(c_ref, "ref");
+                print_cdf2(c_new, "new");
+                print_msac(&s_ref, "ref");
+                print_msac(&s_new, "new");
+                fail();
+                break;
+            }
+        }
+
+        msac_init(&s_new, buf, MAX_BYTES, 0);
+        c_new[0] = 16384;
+        c_new[1] = c_new[2] = c_new[3] = 0;
+        bench_new(&s_new, c_new, 4);
+    }
+    report("decode_symbol");
+}
+
 static void check_init() {
     int i;
 
@@ -261,6 +314,7 @@ static void check_init() {
 
 void checkasm_check_msac(void) {
     check_init();
+    check_decode_symbol();
     check_decode_bool_equi();
     check_decode_bool_prob();
     check_decode_bool();

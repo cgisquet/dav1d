@@ -605,9 +605,11 @@ void *checkasm_check_func(void *const func, const char *const name, ...) {
 
 /* Decide whether or not the current function needs to be benchmarked */
 int checkasm_bench_func(void) {
-    return !state.num_failed && state.bench_pattern &&
+    int ret = !state.num_failed && state.bench_pattern &&
            !strncmp(state.current_func->name, state.bench_pattern,
                     state.bench_pattern_len);
+    if (ret) fprintf(stderr, "Benching %s\n", state.current_func->name);
+    return ret;
 }
 
 /* Indicate that the current test has failed */
