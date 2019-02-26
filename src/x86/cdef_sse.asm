@@ -300,10 +300,17 @@ cglobal cdef_filter_%1x%2, 2, 7, 8, - 7 * 16 - (%2+4)*%3, \
     PMOVZXBW        m6, [dst4q+strideq*2], %1 == 4
     PMOVZXBW        m7, [dst4q+stride3q ], %1 == 4
  %endif
+ %if %1 == 4
+    movq     [px+0*%3], m0
+    movq     [px+1*%3], m1
+    movq     [px+2*%3], m2
+    movq     [px+3*%3], m3
+ %else
     mova     [px+0*%3], m0
     mova     [px+1*%3], m1
     mova     [px+2*%3], m2
     mova     [px+3*%3], m3
+ %endif
  %if %2 == 8
     mova     [px+4*%3], m4
     mova     [px+5*%3], m5
@@ -396,8 +403,13 @@ cglobal cdef_filter_%1x%2, 2, 7, 8, - 7 * 16 - (%2+4)*%3, \
 .top_no_left_right:
     PMOVZXBW        m0, [top1q], %1 == 4
     PMOVZXBW        m1, [top2q], %1 == 4
+ %if %1 == 4
+    movq     [px-2*%3], m0
+    movq     [px-1*%3], m1
+ %else
     mova     [px-2*%3], m0
     mova     [px-1*%3], m1
+ %endif
     mov dword [px-2*%3+%1*2], OUT_OF_BOUNDS
     mov dword [px-1*%3+%1*2], OUT_OF_BOUNDS
     mov dword [px-2*%3-4], OUT_OF_BOUNDS
@@ -540,8 +552,13 @@ cglobal cdef_filter_%1x%2, 2, 7, 8, - 7 * 16 - (%2+4)*%3, \
 .bottom_no_left_right:
     PMOVZXBW        m0, [dst8q+strideq*0], %1 == 4
     PMOVZXBW        m1, [dst8q+strideq*1], %1 == 4
+ %if %1 == 4
+    movq [px+(%2+0)*%3], m0
+    movq [px+(%2+1)*%3], m1
+ %else
     mova [px+(%2+0)*%3], m0
     mova [px+(%2+1)*%3], m1
+ %endif
     mov dword [px+(%2+0)*%3+%1*2], OUT_OF_BOUNDS
     mov dword [px+(%2+1)*%3+%1*2], OUT_OF_BOUNDS
     mov dword [px+(%2+0)*%3-4], OUT_OF_BOUNDS
