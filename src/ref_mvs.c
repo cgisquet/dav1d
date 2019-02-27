@@ -1780,9 +1780,16 @@ static int motion_field_projection(AV1_COMMON *cm, MV_REFERENCE_FRAME ref_frame,
       int mi_r, mi_c;
       const int ref_frame_offset = ref_offset[mv_ref->ref_frame[diridx]];
 
-      int pos_valid = get_proj_and_pos(cm, &mi_r, &mi_c, blk_row, blk_col,
+      int pos_valid;
+      if (!fwd_mv.as_int) {
+        pos_valid = 1;
+        mi_r = blk_row;
+        mi_c = blk_col;
+      } else {
+        pos_valid = get_proj_and_pos(cm, &mi_r, &mi_c, blk_row, blk_col,
                                        fwd_mv.as_mv, dir >> 1,
                                        scale[ref_frame_offset] );
+      }
 
       if (pos_valid && mi_c >= (from_x4 >> 1) && mi_c < (to_x4 >> 1)) {
         int mi_offset = mi_r * (cm->mi_stride >> 1) + mi_c;
