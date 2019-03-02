@@ -1713,6 +1713,7 @@ static int motion_field_projection(AV1_COMMON *cm, MV_REFERENCE_FRAME ref_frame,
   if (dir == 2) ref_to_cur = -ref_to_cur;
   if (abs(ref_to_cur) > MAX_FRAME_DISTANCE)
     return 1;
+  dir >>= 1;
 
   unsigned int *ref_rf_idx =
       &cm->buffer_pool.frame_bufs[ref_frame_idx].ref_frame_offset[0];
@@ -1754,6 +1755,8 @@ static int motion_field_projection(AV1_COMMON *cm, MV_REFERENCE_FRAME ref_frame,
   mv_ref_base += (2*row_start8+1)*mv_stride+1;
   mv_stride <<= 1;
 
+  int_mv last_mv[2] = { { .as_int = INVALID_MV }, { .as_int = INVALID_MV } };
+  int last_r[2], last_c[2], last_offset[2];
   for (int blk_row = row_start8; blk_row < row_end8; ++blk_row, mv_ref_base += mv_stride) {
     for (int blk_col = col_start8; blk_col < col_end8; ++blk_col) {
       MV_REF *mv_ref = &mv_ref_base[blk_col << 1];
@@ -1780,23 +1783,43 @@ static int motion_field_projection(AV1_COMMON *cm, MV_REFERENCE_FRAME ref_frame,
       int mi_r, mi_c;
       const int ref_frame_offset = ref_offset[mv_ref->ref_frame[diridx]];
 
-      int pos_valid;
       if (!fwd_mv.as_int) {
-        pos_valid = 1;
+        if (blk_col < (from_x4 >> 1) || blk_col >= (to_x4 >> 1))
+          continue;
         mi_r = blk_row;
         mi_c = blk_col;
+      } else if (fwd_mv.as_int == last_mv[diridx].as_int &&
+                 ref_frame_offset == last_offset[diridx]) {
+        mi_c = last_c[diridx]+blk_col;
+        if (mi_c < (from_x4 >> 1) || mi_c >= (to_x4 >> 1))
+          continue;
+        const int base_blk_col = (blk_col >> 3) << 3;
+        if (mi_c < base_blk_col - (MAX_OFFSET_WIDTH >> 3) ||
+            mi_c >= base_blk_col + 8 + (MAX_OFFSET_WIDTH >> 3))
+          continue;
+
+        mi_r = last_r[diridx]+blk_row;
+        const int base_blk_row = (blk_row >> 3) << 3;
+        if (mi_r < base_blk_row - (MAX_OFFSET_HEIGHT >> 3) ||
+            mi_r >= base_blk_row + 8 + (MAX_OFFSET_HEIGHT >> 3))
+          continue;
       } else {
-        pos_valid = get_proj_and_pos(cm, &mi_r, &mi_c, blk_row, blk_col,
-                                       fwd_mv.as_mv, dir >> 1,
-                                       scale[ref_frame_offset] );
+        if (!get_proj_and_pos( cm, &mi_r, &mi_c, blk_row, blk_col,
+                               fwd_mv.as_mv, dir,
+                               scale[ref_frame_offset] ))
+          continue;
+        last_mv[diridx] = fwd_mv;
+        last_c[diridx] = mi_c-blk_col;
+        last_r[diridx] = mi_r-blk_row;
+        last_offset[diridx] = ref_frame_offset;
+        if (mi_c < (from_x4 >> 1) || mi_c >= (to_x4 >> 1))
+          continue;
       }
 
-      if (pos_valid && mi_c >= (from_x4 >> 1) && mi_c < (to_x4 >> 1)) {
-        int mi_offset = mi_r * (cm->mi_stride >> 1) + mi_c;
+      int mi_offset = mi_r * (cm->mi_stride >> 1) + mi_c;
 
-        tpl_mvs_base[mi_offset].mfmv0.as_int = fwd_mv.as_int;
-        tpl_mvs_base[mi_offset].ref_frame_offset = ref_frame_offset;
-      }
+      tpl_mvs_base[mi_offset].mfmv0.as_int = fwd_mv.as_int;
+      tpl_mvs_base[mi_offset].ref_frame_offset = ref_frame_offset;
     }
   }
 
