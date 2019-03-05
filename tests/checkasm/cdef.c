@@ -121,5 +121,6 @@ void bitfn(checkasm_check_cdef)(void) {
 
     check_cdef_direction(c.dir);
     check_cdef_filter(c.fb[0], 8, 8, "cdef_filter_8x8", 0);
+    check_cdef_filter(c.fb[1], 4, 8, "cdef_filter_4x8", 0);
     check_cdef_filter(c.fb[2], 4, 4, "cdef_filter_4x4", 0);
 }
