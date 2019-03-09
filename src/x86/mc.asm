@@ -1457,6 +1457,22 @@ PUT_8TAP_FN sharp_regular,  SHARP,   REGULAR
 PUT_8TAP_FN sharp,          SHARP,   SHARP
 PUT_8TAP_FN sharp_smooth,   SHARP,   SMOOTH
 
+%macro WIN64_SET_SPILL_XMM 1
+    %assign stack_offset stack_offset - stack_size_padded
+    %assign xmm_regs_used %1
+    ASSERT xmm_regs_used <= 16 + high_mm_regs
+    %assign %%xmm_regs_on_stack xmm_regs_used - high_mm_regs - 8
+    %if %%xmm_regs_on_stack > 0
+        ; Allocate stack space for callee-saved xmm registers plus shadow space and align the stack.
+        %assign %%pad %%xmm_regs_on_stack*16 + 32
+        %assign stack_size_padded %%pad + ((-%%pad-stack_offset-gprsize) & (STACK_ALIGNMENT-1))
+        ; restore stack as if xmm were pushed
+        %assign stack_offset stack_offset + stack_size_padded
+    %else
+        %assign stack_size_padded 0
+    %endif
+%endmacro
+
 cglobal put_8tap, 4, 9, 0, dst, ds, src, ss, w, h, mx, my, ss3
     imul                mxd, mxm, 0x010101
     add                 mxd, t0d ; 8tap_h, mx, 4tap_h
@@ -1482,11 +1498,11 @@ cglobal put_8tap, 4, 9, 0, dst, ds, src, ss, w, h, mx, my, ss3
     test                myd, 0xf00
     jnz .hv
     vpbroadcastd         m5, [pw_34] ; 2 + (8 << 2)
-    WIN64_SPILL_XMM      11
     cmp                  wd, 4
     jl .h_w2
-    vbroadcasti128       m6, [subpel_h_shufA]
     je .h_w4
+    WIN64_SPILL_XMM      13
+    vbroadcasti128       m6, [subpel_h_shufA]
     tzcnt                wd, wd
     vbroadcasti128       m7, [subpel_h_shufB]
     vbroadcasti128       m8, [subpel_h_shufC]
@@ -1498,6 +1514,9 @@ cglobal put_8tap, 4, 9, 0, dst, ds, src, ss, w, h, mx, my, ss3
     add                  wq, r8
     jmp                  wq
 .h_w2:
+    %assign stack_offset stack_offset - stack_size_padded
+    WIN64_SPILL_XMM       6 ; ie nothing
+    %assign stack_size_padded 0
     movzx               mxd, mxb
     dec                srcq
     mova                xm4, [subpel_h_shuf4]
@@ -1519,6 +1538,9 @@ cglobal put_8tap, 4, 9, 0, dst, ds, src, ss, w, h, mx, my, ss3
     jg .h_w2_loop
     RET
 .h_w4:
+    %assign stack_offset stack_offset - stack_size_padded
+    WIN64_SPILL_XMM       7
+    vbroadcasti128       m6, [subpel_h_shufA]
     movzx               mxd, mxb
     dec                srcq
     vpbroadcastd        xm3, [r8+mxq*8+subpel_filters-put_avx2+2]
@@ -1541,6 +1563,7 @@ cglobal put_8tap, 4, 9, 0, dst, ds, src, ss, w, h, mx, my, ss3
     jg .h_w4_loop
     RET
 .h_w8:
+    WIN64_SET_SPILL_XMM  13
 %macro PUT_8TAP_H 4 ; dst/src, tmp[1-3]
     pshufb              m%2, m%1, m7
     pshufb              m%3, m%1, m8
@@ -1568,19 +1591,31 @@ cglobal put_8tap, 4, 9, 0, dst, ds, src, ss, w, h, mx, my, ss3
     jg .h_w8
     RET
 .h_w16:
+    lea                  r6, [ssq*3]
+    lea                  r7, [dsq*3]
+.h_w16_loop:
     movu                xm0,     [srcq+ssq*0+8*0]
-    vinserti128          m0, m0, [srcq+ssq*1+8*0], 1
     movu                xm1,     [srcq+ssq*0+8*1]
+    movu               xm11,     [srcq+ssq*2+8*0]
+    movu               xm12,     [srcq+ssq*2+8*1]
+    vinserti128          m0, m0, [srcq+ssq*1+8*0], 1
     vinserti128          m1, m1, [srcq+ssq*1+8*1], 1
+    vinserti128         m11, m11, [srcq+r6q*1+8*0], 1
+    vinserti128         m12, m12, [srcq+r6q*1+8*1], 1
     PUT_8TAP_H            0, 2, 3, 4
-    lea                srcq, [srcq+ssq*2]
     PUT_8TAP_H            1, 2, 3, 4
+    PUT_8TAP_H           11, 2, 3, 4
+    PUT_8TAP_H           12, 2, 3, 4
     packuswb             m0, m1
+    packuswb            m11, m12
     mova         [dstq+dsq*0], xm0
     vextracti128 [dstq+dsq*1], m0, 1
-    lea                dstq, [dstq+dsq*2]
-    sub                  hd, 2
-    jg .h_w16
+    mova         [dstq+dsq*2], xm11
+    vextracti128 [dstq+r7q*1], m11, 1
+    lea                srcq, [srcq+ssq*4]
+    lea                dstq, [dstq+dsq*4]
+    sub                  hd, 4
+    jg .h_w16_loop
     RET
 .h_w32:
     xor                 r6d, r6d
@@ -1595,18 +1630,26 @@ cglobal put_8tap, 4, 9, 0, dst, ds, src, ss, w, h, mx, my, ss3
     sub                dstq, r6
     mov                  r4, r6
 .h_loop:
+    lea                 r7q, [srcq+ssq]
+    lea                 r8q, [dstq+dsq]
     movu                 m0, [srcq+r6+8*0]
     movu                 m1, [srcq+r6+8*1]
+    movu                m11, [ r7q+r6+8*0]
+    movu                m12, [ r7q+r6+8*1]
     PUT_8TAP_H            0, 2, 3, 4
     PUT_8TAP_H            1, 2, 3, 4
+    PUT_8TAP_H           11, 2, 3, 4
+    PUT_8TAP_H           12, 2, 3, 4
     packuswb             m0, m1
+    packuswb            m11, m12
     mova          [dstq+r6], m0
+    mova          [ r8q+r6], m11
     add                  r6, 32
     jle .h_loop
-    add                srcq, ssq
-    add                dstq, dsq
+    lea                srcq, [srcq+2*ssq]
+    lea                dstq, [dstq+2*dsq]
     mov                  r6, r4
-    dec                  hd
+    sub                  hd, 2
     jg .h_loop
     RET
 .v:
@@ -2144,9 +2187,9 @@ cglobal prep_8tap, 3, 8, 0, tmp, src, stride, w, h, mx, my, stride3
     jnz .hv
     vbroadcasti128       m5, [subpel_h_shufA]
     vpbroadcastd         m4, [pw_8192]
-    WIN64_SPILL_XMM      10
     cmp                  wd, 4
     je .h_w4
+    WIN64_SPILL_XMM      13
     tzcnt                wd, wd
     vbroadcasti128       m6, [subpel_h_shufB]
     vbroadcasti128       m7, [subpel_h_shufC]
@@ -2158,6 +2201,9 @@ cglobal prep_8tap, 3, 8, 0, tmp, src, stride, w, h, mx, my, stride3
     add                  wq, r7
     jmp                  wq
 .h_w4:
+    %assign stack_offset stack_offset - stack_size_padded
+    WIN64_SPILL_XMM       6 ; ie nothing
+    %assign stack_size_padded 0
     movzx               mxd, mxb
     dec                srcq
     vpbroadcastd         m3, [r7+mxq*8+subpel_filters-prep_avx2+2]
@@ -2182,23 +2228,24 @@ cglobal prep_8tap, 3, 8, 0, tmp, src, stride, w, h, mx, my, stride3
     jg .h_w4_loop
     RET
 .h_w8:
-%macro PREP_8TAP_H 0
-    pshufb               m1, m0, m6
-    pshufb               m2, m0, m7
-    pshufb               m0, m5
+    WIN64_SET_SPILL_XMM  13
+%macro PREP_8TAP_H 1
+    pshufb               m1, m%1, m6
+    pshufb               m2, m%1, m7
+    pshufb               m%1, m5
     pmaddubsw            m3, m1, m8
     pmaddubsw            m1, m9
     pmaddubsw            m2, m9
-    pmaddubsw            m0, m8
+    pmaddubsw            m%1, m8
     paddw                m2, m3
-    paddw                m0, m1
-    phaddw               m0, m2
-    pmulhrsw             m0, m4
+    paddw                m%1, m1
+    phaddw               m%1, m2
+    pmulhrsw             m%1, m4
 %endmacro
     movu                xm0,     [srcq+strideq*0]
     vinserti128          m0, m0, [srcq+strideq*1], 1
     lea                srcq,     [srcq+strideq*2]
-    PREP_8TAP_H
+    PREP_8TAP_H           0
     mova             [tmpq], m0
     add                tmpq, 32
     sub                  hd, 2
@@ -2206,44 +2253,57 @@ cglobal prep_8tap, 3, 8, 0, tmp, src, stride, w, h, mx, my, stride3
     RET
 .h_w16:
     movu                xm0,     [srcq+strideq*0+8*0]
+    movu               xm10,     [srcq+strideq*1+8*0]
     vinserti128          m0, m0, [srcq+strideq*0+8*1], 1
-    PREP_8TAP_H
+    vinserti128         m10, m10, [srcq+strideq*1+8*1], 1
+    PREP_8TAP_H           0
+    PREP_8TAP_H          10
     mova        [tmpq+32*0], m0
-    movu                xm0,     [srcq+strideq*1+8*0]
-    vinserti128          m0, m0, [srcq+strideq*1+8*1], 1
+    mova        [tmpq+32*1], m10
     lea                srcq, [srcq+strideq*2]
-    PREP_8TAP_H
-    mova        [tmpq+32*1], m0
     add                tmpq, 64
     sub                  hd, 2
     jg .h_w16
     RET
 .h_w32:
     xor                 r6d, r6d
+    mov                  r7, 64
     jmp .h_start
 .h_w64:
     mov                  r6, -32*1
+    mov                  r7, 128
     jmp .h_start
 .h_w128:
     mov                  r6, -32*3
+    mov                  r7, 256
 .h_start:
     sub                srcq, r6
     mov                  r5, r6
 .h_loop:
+    lea                 r3q, [srcq+strideq]
     movu                xm0,     [srcq+r6+8*0]
+    movu               xm10,     [srcq+r6+8*2]
     vinserti128          m0, m0, [srcq+r6+8*1], 1
-    PREP_8TAP_H
+    vinserti128         m10, m10, [srcq+r6+8*3], 1
+    movu               xm11,     [r3q+r6+8*0]
+    movu               xm12,     [r3q+r6+8*2]
+    vinserti128         m11, m11, [r3q+r6+8*1], 1
+    vinserti128         m12, m12, [r3q+r6+8*3], 1
+    PREP_8TAP_H           0
+    PREP_8TAP_H          10
+    PREP_8TAP_H          11
+    PREP_8TAP_H          12
     mova        [tmpq+32*0], m0
-    movu                xm0,     [srcq+r6+8*2]
-    vinserti128          m0, m0, [srcq+r6+8*3], 1
-    PREP_8TAP_H
-    mova        [tmpq+32*1], m0
+    mova        [tmpq+32*1], m10
+    mova    [tmpq+r7q+32*0], m11
+    mova    [tmpq+r7q+32*1], m12
     add                tmpq, 64
     add                  r6, 32
     jle .h_loop
-    add                srcq, strideq
+    lea                 srcq, [srcq+2*strideq]
+    add                 tmpq, r7q
     mov                  r6, r5
-    dec                  hd
+    sub                  hd, 2
     jg .h_loop
     RET
 .v:
