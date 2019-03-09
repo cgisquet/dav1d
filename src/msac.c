@@ -41,6 +41,18 @@
 static inline void ctx_refill(MsacContext *s) {
     const uint8_t *buf_pos = s->buf_pos;
     const uint8_t *buf_end = s->buf_end;
+    if (buf_end - buf_pos >= 8) {
+        int shift = (24 + s->cnt) & ~0x7;
+#ifdef _MSC_VER
+        __int64 tmp = _byteswap_uint64(*(__int64*)buf_pos) >> shift;
+#else
+        uint64_t tmp = __builtin_bswap64(*(uint64_t*)buf_pos) >> shift;
+#endif
+        s->dif ^= tmp << (shift - 16 - s->cnt);
+        s->cnt += EC_WIN_SIZE - shift;
+        s->buf_pos += (EC_WIN_SIZE - shift) >> 3;
+        return;
+    }
     int c = EC_WIN_SIZE - s->cnt - 24;
     ec_win dif = s->dif;
     while (c >= 0 && buf_pos < buf_end) {
