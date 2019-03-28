@@ -150,7 +150,7 @@ SECTION .text
     COND %4&2,vpbroadcastb   m14, [tableq+secdmpq]        ; sec_shift_mask
 
     ; pri/sec_taps[k] [4 total]
-    DEFINE_ARGS dst, stride, dummy, table, pri, sec, stride3
+    DEFINE_ARGS dst, stride, dir, table, pri, sec, stride3
     COND %4&1,movd           xm0, prid
     COND %4&2,movd           xm1, secd
     COND %4&1,vpbroadcastb    m0, xm0                     ; pri_strength
@@ -160,9 +160,8 @@ SECTION .text
     COND %4&2,lea           secq, [tableq+12]             ; sec_taps
 
     ; off1/2/3[k] [6 total] from [tapq+16+(dir+0/2/6)*2+k]
-    DEFINE_ARGS dst, stride, dir, tap, pri, sec, stride3
     mov           dird, r6m
-    lea           dirq, [tapq+dirq*2+14]
+    lea           dirq, [tableq+dirq*2+14]
 %if %1*%2*2/mmsize > 1
  %if %1 == 4
     DEFINE_ARGS dst, stride, dir, stk, pri, sec, stride3, h, off, k
