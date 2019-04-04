@@ -118,7 +118,7 @@ SECTION .text
  %endif
 %endmacro
 
-%macro ACCUMULATE_TAP 7 ; tap_offset, shift, shift_mask, strength, mul_tap, w, stride
+%macro ACCUMULATE_TAP 8 ; tap_offset, shift, shift_mask, strength, mul_tap, w, stride, strength_mask
     ; load p0/p1
     movsx         offq, byte [dirq+kq+%1]       ; off1
  %if %6 == 4
@@ -138,9 +138,9 @@ SECTION .text
     ; out of bounds values are set to a value that is a both a large unsigned
     ; value and a negative signed value.
     ; use signed max and unsigned min to remove them
-    pmaxsw          m7, m5
+    pmaxsw         MAX, m5
     pminuw          m8, m5
-    pmaxsw          m7, m6
+    pmaxsw         MAX, m6
     pminuw          m8, m6
  %else
   %if ARCH_X86_64
@@ -148,22 +148,31 @@ SECTION .text
     pcmpeqw        m10, m14, m6
     pandn           m9, m5
     pandn          m10, m6
-    pmaxsw          m7, m9                      ; max after p0
+    pmaxsw         MAX, m9                      ; max after p0
     pminsw          m8, m5                      ; min after p0
-    pmaxsw          m7, m10                     ; max after p1
+    pmaxsw         MAX, m10                     ; max after p1
     pminsw          m8, m6                      ; min after p1
-  %else
+  %else ; !ARCH_X86_64 && !cpuflag(sse4)
+  %if %8 > 0
     pcmpeqw         m3, m5, OUT_OF_BOUNDS_MEM
+  %else ;
+    pcmpeqw         m3, m5, m2
+  %endif
     pandn           m3, m5
-    pmaxsw          m7, m3                      ; max after p0
+    pmaxsw         MAX, m3                      ; max after p0
     pminsw          m8, m5                      ; min after p0
+  %if %8 > 0
     pcmpeqw         m3, m6, OUT_OF_BOUNDS_MEM
+  %else
+    pcmpeqw         m3, m6, m2
+  %endif
     pandn           m3, m6
-    pmaxsw          m7, m3                      ; max after p1
+    pmaxsw         MAX, m3                      ; max after p1
     pminsw          m8, m6                      ; min after p1
   %endif
  %endif
 
+%if %8 > 0
     ; accumulate sum[m13] over p0/p1
     psubw           m5, m4          ; diff_p0(p0 - px)
     psubw           m6, m4          ; diff_p1(p1 - px)
@@ -188,6 +197,7 @@ SECTION .text
     pminub          m5, m6          ; constrain(diff_p)
     pmaddubsw       m5, m9          ; constrain(diff_p) * taps
     paddw          m13, m5
+%endif
 %endmacro
 
 %macro PMOVZXBW 2-3 0 ; %3 = half
@@ -229,6 +239,196 @@ SECTION .text
     mova [%1+2*%4+2*8], m6
     mova [%1+3*%4+2*8], m7
  %endif
+%endmacro
+
+%macro COND 2+ ; condition, insn, op1, op2, op3
+%if %1
+    %2
+%endif
+%endmacro
+
+%macro CORE_LOOP 4 ; 1-3: cdef_filter 4: mask
+    DEFINE_ARGS dst, stride, pridmp, damping, pri, sec, secdmp
+ %define PIC_reg r2
+ %if %4
+ %if ARCH_X86_64
+    mov       dampingd, r7m
+ %else
+    LOAD_ARG   damping, 1
+ %endif
+
+    SAVE_PIC_REG     8
+    COND %4&1,mov        pridmpd, prid
+    COND %4&2,mov        secdmpd, secd
+    COND %4&1,or         pridmpd, 1
+    COND %4&2,or         secdmpd, 1
+    COND %4&1,bsr        pridmpd, pridmpd
+    COND %4&2,bsr        secdmpd, secdmpd
+    COND %4&1,sub        pridmpd, dampingd
+    COND %4&2,sub        secdmpd, dampingd
+    COND %4  ,xor       dampingd, dampingd
+    COND %4&1,neg        pridmpd
+    COND %4&1,cmovl      pridmpd, dampingd
+    COND %4&2,neg        secdmpd
+    COND %4&2,cmovl      secdmpd, dampingd
+ %if ARCH_X86_64
+    COND %4&1,mov       [rsp+ 0], pridmpq                 ; pri_shift
+    COND %4&2,mov       [rsp+16], secdmpq                 ; sec_shift
+ %else
+    COND %4&1,mov     [esp+0x00], pridmpd
+    COND %4&2,mov     [esp+0x30], secdmpd
+    COND %4&1,mov dword [esp+0x04], 0                     ; zero upper 32 bits of psrlw
+    COND %4&2,mov dword [esp+0x34], 0                     ; source operand in ACCUMULATE_TAP
+  %define PIC_reg r4
+    LOAD_PIC_REG     8
+ %endif
+ %endif
+
+    DEFINE_ARGS dst, stride, pridmp, table, pri, sec, secdmp
+    COND %4  ,lea         tableq, [PIC_sym(tap_table)]
+ %if ARCH_X86_64
+    SWAP            m2, m11
+    SWAP            m3, m12
+ %endif
+    COND %4&1,movd            m2, [tableq+pridmpq]
+    COND %4&2,movd            m3, [tableq+secdmpq]
+    COND %4&1,pshufb          m2, m15                     ; pri_shift_mask
+    COND %4&2,pshufb          m3, m15                     ; sec_shift_mask
+ %if ARCH_X86_64
+    SWAP            m2, m11
+    SWAP            m3, m12
+ %else
+  %define PIC_reg r6
+    mov        PIC_reg, r4
+    DEFINE_ARGS dst, stride, dir, table, pri, sec, secdmp
+  %if %4 ; only need for load pri/sec_taps later
+    LOAD_ARG       pri
+  %endif
+    LOAD_ARG       dir, 1 ; really needed for loading offsets
+    COND %4&1,mova    [esp+0x10], m2
+    COND %4&2,mova    [esp+0x40], m3
+ %endif
+
+    ; pri/sec_taps[k] [4 total]
+    DEFINE_ARGS dst, stride, dummy, tap, pri, sec
+    COND %4&1,movd            m0, prid
+    COND %4&2,movd            m1, secd
+ %if ARCH_X86_64
+    COND %4&1,pshufb          m0, m15
+    COND %4&2,pshufb          m1, m15
+ %else
+    COND %4  ,mova            m2, m15
+    COND %4  ,mova            m3, [PIC_sym(pb_0xFF)]
+    COND %4&1,pshufb          m0, m2
+    COND %4&2,pshufb          m1, m2
+    COND %4&1,pxor            m0, m3
+    COND %4&2,pxor            m1, m3
+    COND %4&1,mova    [esp+0x20], m0
+    COND %4&2,mova    [esp+0x50], m1
+ %endif
+    COND %4  ,and           prid, 1
+    COND %4&1,lea           priq, [tapq+8+priq*2]         ; pri_taps
+    COND %4&2,lea           secq, [tapq+12]               ; sec_taps
+
+ %if ARCH_X86_64 && cpuflag(sse4)
+    COND %4  ,mova           m14, [shufb_lohi]
+ %endif
+
+    ; off1/2/3[k] [6 total] from [tapq+12+(dir+0/2/6)*2+k]
+    DEFINE_ARGS dst, stride, dir, tap, pri, sec
+ %if ARCH_X86_64
+    mov           dird, r6m
+    lea           dirq, [tapq+14+dirq*2]
+    DEFINE_ARGS dst, stride, dir, stk, pri, sec, h, off, k
+  %define MAX  m7
+ %else
+    lea           dird, [tapd+14+dird*2]
+    DEFINE_ARGS dst, stride, dir, stk, pri, sec
+  %define hd    dword [esp+8]
+  %define offq  dstq
+  %define kq    strideq
+  %define m9   m3
+  %define m13  m7
+  %define  m8  m1
+  %define MAX  m0
+ %if %4 == 0 && !cpuflag(sse4)
+    pcmpeqw         m2, m2
+    psrlw           m2, 1
+ %endif
+ %endif
+    mov             hd, %1*%2*2/mmsize
+    lea           stkq, [px]
+    movif32 [esp+0x3C], strided
+.v_loop%4:
+    movif32 [esp+0x38], dstd
+    mov             kq, 1
+ %if %1 == 4
+    movq            m4, [stkq+%3*0]
+    movhps          m4, [stkq+%3*1]
+ %else
+    mova            m4, [stkq+%3*0]             ; px
+ %endif
+
+    COND %4,pxor   m13, m13                     ; sum
+    mova           MAX, m4                      ; max
+    mova            m8, m4                      ; min
+.k_loop%4:
+ %if ARCH_X86_64
+    COND %4&1,movd            m2, [priq+kq]               ; pri_taps
+    COND %4&2,movd            m3, [secq+kq]               ; sec_taps
+    COND %4&1,pshufb          m2, m15
+    COND %4&2,pshufb          m3, m15
+    ACCUMULATE_TAP 0*2, [rsp+ 0], m11, m0, m2, %1, %3, %4&1
+    ACCUMULATE_TAP 2*2, [rsp+16], m12, m1, m3, %1, %3, %4&2
+    ACCUMULATE_TAP 6*2, [rsp+16], m12, m1, m3, %1, %3, %4&2
+ %else
+    COND %4&1,movd            m2, [priq+kq]             ; pri_taps
+    COND %4&1,pshufb          m2, m15
+    ACCUMULATE_TAP 0*2, [esp+0x00], [esp+0x10], [esp+0x20], m2, %1, %3, %4&1
+
+    COND %4&2,movd            m2, [secq+kq]             ; sec_taps
+    COND %4&2,pshufb          m2, m15
+    ACCUMULATE_TAP 2*2, [esp+0x30], [esp+0x40], [esp+0x50], m2, %1, %3, %4&2
+    ACCUMULATE_TAP 6*2, [esp+0x30], [esp+0x40], [esp+0x50], m2, %1, %3, %4&2
+ %endif
+
+    dec             kq
+    jge .k_loop%4
+
+ %if %4
+ %if cpuflag(sse4)
+    pcmpgtw         m6, m15, m13
+ %else
+    pxor            m6, m6
+    pcmpgtw         m6, m13
+ %endif
+    paddw          m13, m6
+    pmulhrsw       m13, [PIC_sym(pw_2048)]
+    paddw           m4, m13
+ %endif
+    pminsw          m4, MAX
+    pmaxsw          m4, m8
+    packuswb        m4, m4
+    movif32       dstd, [esp+0x38]
+    movif32    strided, [esp+0x3C]
+ %if %1 == 4
+    movd [dstq+strideq*0], m4
+    psrlq           m4, 32
+    movd [dstq+strideq*1], m4
+ %else
+    movq [dstq], m4
+ %endif
+
+ %if %1 == 4
+ %define vloop_lines (mmsize/(%1*2))
+    lea           dstq, [dstq+strideq*vloop_lines]
+    add           stkq, %3*vloop_lines
+ %else
+    lea           dstq, [dstq+strideq]
+    add           stkq, %3
+ %endif
+    dec             hd
+    jg .v_loop%4
 %endmacro
 
 %macro CDEF_FILTER 3 ; w, h, stride
@@ -586,179 +786,38 @@ cglobal cdef_filter_%1x%2, 2, 7, 8, - 7 * 16 - (%2+4)*%3, \
  %if ARCH_X86_64
     movifnidn     prid, prim
     movifnidn     secd, secm
-    mov       dampingd, r7m
  %else
     LOAD_ARG       pri
     LOAD_ARG       sec
-    LOAD_ARG   damping, 1
  %endif
+ 
+ %assign offset_back stack_offset
 
-    SAVE_PIC_REG     8
-    mov        pridmpd, prid
-    mov        secdmpd, secd
-    or         pridmpd, 1
-    or         secdmpd, 1
-    bsr        pridmpd, pridmpd
-    bsr        secdmpd, secdmpd
-    sub        pridmpd, dampingd
-    sub        secdmpd, dampingd
-    xor       dampingd, dampingd
-    neg        pridmpd
-    cmovl      pridmpd, dampingd
-    neg        secdmpd
-    cmovl      secdmpd, dampingd
- %if ARCH_X86_64
-    mov       [rsp+ 0], pridmpq                 ; pri_shift
-    mov       [rsp+16], secdmpq                 ; sec_shift
- %else
-    mov     [esp+0x00], pridmpd
-    mov     [esp+0x30], secdmpd
-    mov dword [esp+0x04], 0                     ; zero upper 32 bits of psrlw
-    mov dword [esp+0x34], 0                     ; source operand in ACCUMULATE_TAP
-  %define PIC_reg r4
-    LOAD_PIC_REG     8
- %endif
+    cmp prid, 0
+    jz .mask0x
+    cmp secd, 0
+    jnz .maskxy
 
-    DEFINE_ARGS dst, stride, pridmp, table, pri, sec, secdmp
-    lea         tableq, [PIC_sym(tap_table)]
- %if ARCH_X86_64
-    SWAP            m2, m11
-    SWAP            m3, m12
- %endif
-    movd            m2, [tableq+pridmpq]
-    movd            m3, [tableq+secdmpq]
-    pshufb          m2, m15                     ; pri_shift_mask
-    pshufb          m3, m15                     ; sec_shift_mask
- %if ARCH_X86_64
-    SWAP            m2, m11
-    SWAP            m3, m12
- %else
-  %define PIC_reg r6
-    mov        PIC_reg, r4
-    DEFINE_ARGS dst, stride, dir, table, pri, sec, secdmp
-    LOAD_ARG       pri
-    LOAD_ARG       dir, 1
-    mova    [esp+0x10], m2
-    mova    [esp+0x40], m3
- %endif
+    ; .maskx0
+    CORE_LOOP  %1, %2, %3, 1 ; x0
+    RET
 
-    ; pri/sec_taps[k] [4 total]
-    DEFINE_ARGS dst, stride, dummy, tap, pri, sec
-    movd            m0, prid
-    movd            m1, secd
- %if ARCH_X86_64
-    pshufb          m0, m15
-    pshufb          m1, m15
- %else
-    mova            m2, m15
-    mova            m3, [PIC_sym(pb_0xFF)]
-    pshufb          m0, m2
-    pshufb          m1, m2
-    pxor            m0, m3
-    pxor            m1, m3
-    mova    [esp+0x20], m0
-    mova    [esp+0x50], m1
- %endif
-    and           prid, 1
-    lea           priq, [tapq+8+priq*2]         ; pri_taps
-    lea           secq, [tapq+12]               ; sec_taps
+.mask0x:
+    cmp secd, 0
+    jz .mask00
+    jmp .maskxy
+ %assign stack_offset offset_back
+    CORE_LOOP  %1, %2, %3, 2 ; 0x
+    RET
 
- %if ARCH_X86_64 && cpuflag(sse4)
-    mova           m14, [shufb_lohi]
- %endif
+.maskxy:
+ %assign stack_offset offset_back
+    CORE_LOOP  %1, %2, %3, 3 ; xy
+    RET
 
-    ; off1/2/3[k] [6 total] from [tapq+12+(dir+0/2/6)*2+k]
-    DEFINE_ARGS dst, stride, dir, tap, pri, sec
- %if ARCH_X86_64
-    mov           dird, r6m
-    lea           dirq, [tapq+14+dirq*2]
-    DEFINE_ARGS dst, stride, dir, stk, pri, sec, h, off, k
- %else
-    lea           dird, [tapd+14+dird*2]
-    DEFINE_ARGS dst, stride, dir, stk, pri, sec
-  %define hd    dword [esp+8]
-  %define offq  dstq
-  %define kq    strideq
- %endif
-    mov             hd, %1*%2*2/mmsize
-    lea           stkq, [px]
-    movif32 [esp+0x3C], strided
-.v_loop:
-    movif32 [esp+0x38], dstd
-    mov             kq, 1
- %if %1 == 4
-    movq            m4, [stkq+%3*0]
-    movhps          m4, [stkq+%3*1]
- %else
-    mova            m4, [stkq+%3*0]             ; px
- %endif
-
- %if ARCH_X86_32
-  %xdefine m9   m3
-  %xdefine m13  m7
-  %xdefine  m7  m0
-  %xdefine  m8  m1
- %endif
-
-    pxor           m13, m13                     ; sum
-    mova            m7, m4                      ; max
-    mova            m8, m4                      ; min
-.k_loop:
- %if ARCH_X86_64
-    movd            m2, [priq+kq]               ; pri_taps
-    movd            m3, [secq+kq]               ; sec_taps
-    pshufb          m2, m15
-    pshufb          m3, m15
-    ACCUMULATE_TAP 0*2, [rsp+ 0], m11, m0, m2, %1, %3
-    ACCUMULATE_TAP 2*2, [rsp+16], m12, m1, m3, %1, %3
-    ACCUMULATE_TAP 6*2, [rsp+16], m12, m1, m3, %1, %3
- %else
-    movd            m2, [priq+kq]             ; pri_taps
-    pshufb          m2, m15
-    ACCUMULATE_TAP 0*2, [esp+0x00], [esp+0x10], [esp+0x20], m2, %1, %3
-
-    movd            m2, [secq+kq]             ; sec_taps
-    pshufb          m2, m15
-    ACCUMULATE_TAP 2*2, [esp+0x30], [esp+0x40], [esp+0x50], m2, %1, %3
-    ACCUMULATE_TAP 6*2, [esp+0x30], [esp+0x40], [esp+0x50], m2, %1, %3
- %endif
-
-    dec             kq
-    jge .k_loop
-
- %if cpuflag(sse4)
-    pcmpgtw         m6, m15, m13
- %else
-    pxor            m6, m6
-    pcmpgtw         m6, m13
- %endif
-    paddw          m13, m6
-    pmulhrsw       m13, [PIC_sym(pw_2048)]
-    paddw           m4, m13
-    pminsw          m4, m7
-    pmaxsw          m4, m8
-    packuswb        m4, m4
-    movif32       dstd, [esp+0x38]
-    movif32    strided, [esp+0x3C]
- %if %1 == 4
-    movd [dstq+strideq*0], m4
-    psrlq           m4, 32
-    movd [dstq+strideq*1], m4
- %else
-    movq [dstq], m4
- %endif
-
- %if %1 == 4
- %define vloop_lines (mmsize/(%1*2))
-    lea           dstq, [dstq+strideq*vloop_lines]
-    add           stkq, %3*vloop_lines
- %else
-    lea           dstq, [dstq+strideq]
-    add           stkq, %3
- %endif
-    dec             hd
-    jg .v_loop
-
+.mask00:
+ %assign stack_offset offset_back
+    CORE_LOOP  %1, %2, %3, 0 ; 00
     RET
 %endmacro
 
