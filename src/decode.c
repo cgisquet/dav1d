@@ -2024,9 +2024,17 @@ static int decode_sb(Dav1dTileContext *const t, const enum BlockLevel bl,
             const Av1Block *const b = &f->frame_thread.b[t->by * f->b4_stride + t->bx];
             bp = b->bl == bl ? b->bp : PARTITION_SPLIT;
         } else {
-            const unsigned n_part = bl == BL_8X8 ? N_SUB8X8_PARTITIONS :
-                bl == BL_128X128 ? N_PARTITIONS - 2 : N_PARTITIONS;
-            bp = dav1d_msac_decode_symbol_adapt16(&t->ts->msac, pc, n_part);
+            switch (bl) {
+            case BL_8X8:
+                bp = dav1d_msac_decode_symbol_adapt4(&t->ts->msac, pc, N_SUB8X8_PARTITIONS);
+                break;
+            case BL_128X128:
+                bp = dav1d_msac_decode_symbol_adapt8(&t->ts->msac, pc, N_PARTITIONS - 2);
+                break;
+            default:
+                bp = dav1d_msac_decode_symbol_adapt16(&t->ts->msac, pc, N_PARTITIONS);
+                break;
+            }
             if (f->cur.p.layout == DAV1D_PIXEL_LAYOUT_I422 &&
                 (bp == PARTITION_V || bp == PARTITION_V4 ||
                  bp == PARTITION_T_LEFT_SPLIT || bp == PARTITION_T_RIGHT_SPLIT))
