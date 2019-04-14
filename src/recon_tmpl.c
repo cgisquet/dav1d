@@ -56,7 +56,8 @@ static unsigned read_golomb(MsacContext *const msac) {
     return val - 1;
 }
 
-static int decode_coefs(Dav1dTileContext *const t,
+static inline
+int decode_coefs_inline(const int qm, Dav1dTileContext *const t,
                         uint8_t *const a, uint8_t *const l,
                         const enum RectTxfmSize tx, const enum BlockSize bs,
                         const Av1Block *const b, const int intra,
@@ -282,7 +283,7 @@ other_coeffs: ; //Fuck you, C
     const int bitdepth = BITDEPTH == 8 ? 8 : f->cur.p.bpc;
     const int cf_min = -(1 << (7 + bitdepth));
     const int cf_max = (1 << (7 + bitdepth)) - 1;
-    if (!f->frame_hdr->quant.qm) {
+    if (!qm) {
     for (int rc = last; rc != 0xFFFF; rc = next[rc]) {
         int tok = cf[rc];
         int dq;
@@ -381,6 +382,41 @@ other_coeffs: ; //Fuck you, C
 
     return eob;
 }
+
+static FORCE_INLINE
+int decode_coefs_noqm  (Dav1dTileContext *const t,
+                        uint8_t *const a, uint8_t *const l,
+                        const enum RectTxfmSize tx, const enum BlockSize bs,
+                        const Av1Block *const b, const int intra,
+                        const int plane, coef *cf,
+                        enum TxfmType *const txtp, uint8_t *res_ctx)
+{
+  return decode_coefs_inline(0, t, a, l, tx, bs, b, intra, plane, cf, txtp, res_ctx);
+}
+
+static NOINLINE int
+decode_coefs_useqm(Dav1dTileContext *const t,
+                        uint8_t *const a, uint8_t *const l,
+                        const enum RectTxfmSize tx, const enum BlockSize bs,
+                        const Av1Block *const b, const int intra,
+                        const int plane, coef *cf,
+                        enum TxfmType *const txtp, uint8_t *res_ctx)
+{
+  return decode_coefs_inline(1, t, a, l, tx, bs, b, intra, plane, cf, txtp, res_ctx);
+}
+
+static int decode_coefs(Dav1dTileContext *const t,
+                        uint8_t *const a, uint8_t *const l,
+                        const enum RectTxfmSize tx, const enum BlockSize bs,
+                        const Av1Block *const b, const int intra,
+                        const int plane, coef *cf,
+                        enum TxfmType *const txtp, uint8_t *res_ctx)
+{
+  if (!t->f->frame_hdr->quant.qm)
+      return decode_coefs_noqm(t, a, l, tx, bs, b, intra, plane, cf, txtp, res_ctx);
+  return decode_coefs_useqm(t, a, l, tx, bs, b, intra, plane, cf, txtp, res_ctx);
+}
+
 
 static void read_coef_tree(Dav1dTileContext *const t,
                            const enum BlockSize bs, const Av1Block *const b,
