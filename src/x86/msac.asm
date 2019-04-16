@@ -58,15 +58,17 @@ DECLARE_REG_TMP 0
 INIT_XMM sse2
 cglobal msac_decode_symbol_adapt4, 3, 7, 6, s, cdf, ns
     movd           m2, [sq+msac.rng]
+    pcmpeqw        m4, m4
     movq           m1, [cdfq]
     lea           rax, [pw_0xff00]
     movq           m3, [sq+msac.dif]
+    psllw          m4, 8
     mov           r3d, [sq+msac.update_cdf]
     mov           r4d, nsd
     neg           nsq
     pshuflw        m2, m2, q0000
     movd     [buf+12], m2
-    pand           m2, [rax]
+    pand           m2, m4
     mova           m0, m1
     psrlw          m1, 6
     psllw          m1, 7
@@ -171,8 +173,10 @@ cglobal msac_decode_symbol_adapt4, 3, 7, 6, s, cdf, ns
 
 cglobal msac_decode_symbol_adapt8, 3, 7, 6, s, cdf, ns
     movd           m2, [sq+msac.rng]
+    pcmpeqw        m4, m4
     movu           m1, [cdfq]
     lea           rax, [pw_0xff00]
+    psllw          m4, 8
     movq           m3, [sq+msac.dif]
     mov           r3d, [sq+msac.update_cdf]
     mov           r4d, nsd
@@ -182,7 +186,7 @@ cglobal msac_decode_symbol_adapt8, 3, 7, 6, s, cdf, ns
     punpcklqdq     m2, m2
     mova           m0, m1
     psrlw          m1, 6
-    pand           m2, [rax]
+    pand           m2, m4
     psllw          m1, 7
     pmulhuw        m1, m2
     movu           m2, [rax+nsq*2]
@@ -215,11 +219,12 @@ cglobal msac_decode_symbol_adapt8, 3, 7, 6, s, cdf, ns
     jmp m(msac_decode_symbol_adapt4).renorm
 
 cglobal msac_decode_symbol_adapt16, 3, 7, 6, s, cdf, ns
+    pcmpeqw        m5, m5
     movd           m4, [sq+msac.rng]
     movu           m2, [cdfq]
     lea           rax, [pw_0xff00]
     movu           m3, [cdfq+16]
-    movq           m5, [sq+msac.dif]
+    psllw          m5, 8
     mov           r3d, [sq+msac.update_cdf]
     mov           r4d, nsd
     neg           nsq
@@ -233,7 +238,8 @@ cglobal msac_decode_symbol_adapt16, 3, 7, 6, s, cdf, ns
     psrlw          m2, 6
     mova           m1, m3
     psrlw          m3, 6
-    pand           m4, [rax]
+    pand           m4, m5
+    movq           m5, [sq+msac.dif]
     psllw          m2, 7
     psllw          m3, 7
     pmulhuw        m2, m4
