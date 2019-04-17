@@ -64,6 +64,23 @@ static inline void hex_dump(const pixel *buf, ptrdiff_t stride,
     hex_fdump(stdout, buf, stride, w, h, what);
 }
 
+static inline void hex_dump_r(const pixel *buf, ptrdiff_t stride,
+                              const pixel *ref, ptrdiff_t ref_stride,
+                            int w, int h, const char *what)
+{
+    printf("%s\n", what);
+    while (h--) {
+        int x;
+        for (x = 0; x < w; x++) {
+            if (buf[x] == ref[x]) printf(" ..");
+            else printf(" " PIX_HEX_FMT, buf[x]);
+        }
+        buf += PXSTRIDE(stride);
+        ref += PXSTRIDE(ref_stride);
+        printf("\n");
+    }
+}
+
 static inline void coef_dump(const coef *buf, const int w, const int h,
                              const int len, const char *what)
 {

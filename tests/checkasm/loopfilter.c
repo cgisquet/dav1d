@@ -91,11 +91,13 @@ static void init_lpf_border(pixel *const dst, const ptrdiff_t stride,
     }
 }
 
+#include "common/dump.h"
 static void check_lpf_sb(loopfilter_sb_fn fn, const char *const name,
                          const int n_blks, const int lf_idx,
                          const int is_chroma, const int dir)
 {
     ALIGN_STK_32(pixel, c_dst_mem, 128 * 16,);
+    ALIGN_STK_32(pixel, init_mem, 128 * 16,);
     ALIGN_STK_32(pixel, a_dst_mem, 128 * 16,);
 
     declare_func(void, pixel *dst, ptrdiff_t dst_stride, const uint32_t *mask,
@@ -174,6 +176,7 @@ static void check_lpf_sb(loopfilter_sb_fn fn, const char *const name,
                                 lut.e[L], lut.i[L], L >> 4, bitdepth_max);
             }
             memcpy(a_dst_mem, c_dst_mem, 128 * sizeof(pixel) * 16);
+            memcpy(init_mem, c_dst_mem, 128 * sizeof(pixel) * 16);
 
             call_ref(c_dst, stride,
                      vmask, (const uint8_t(*)[4]) &l[dir ? 32 : 1][lf_idx], b4_stride,
@@ -181,6 +184,16 @@ static void check_lpf_sb(loopfilter_sb_fn fn, const char *const name,
             call_new(a_dst, stride,
                      vmask, (const uint8_t(*)[4]) &l[dir ? 32 : 1][lf_idx], b4_stride,
                      &lut, n_blks HIGHBD_TAIL_SUFFIX);
+            if (memcmp(c_dst_mem, a_dst_mem, 128 * 16 * sizeof(*a_dst)))  fail();
+            if (memcmp(c_dst_mem, a_dst_mem, 128 * 16 * sizeof(*a_dst))) {
+                hex_dump(init_mem + 5, stride, 6, n_blks * 4, "init");
+                hex_dump(c_dst - 3, stride, 6, n_blks * 4, "c");
+                hex_dump_r(c_dst - 3, stride,
+                           init_mem + 5, stride,
+                           6, n_blks * 4, "c vs. init");
+                hex_dump_r(a_dst - 3, stride,
+                           c_dst - 3, stride, 6, n_blks * 4, "simd vs. c");
+            }
 
             checkasm_check_pixel(c_dst_mem, stride, a_dst_mem, stride,
                                  w, h, "dst");

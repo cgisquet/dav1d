@@ -142,6 +142,7 @@ if is_asm_enabled
                 'x86/ipred.asm',
                 'x86/itx.asm',
                 'x86/loopfilter.asm',
+                'x86/loopfilter_ssse3.asm',
                 'x86/looprestoration.asm',
                 'x86/mc.asm',
                 'x86/cdef_sse.asm',
