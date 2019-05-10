@@ -217,16 +217,16 @@ int decode_coefs_inline(const int qm, Dav1dTileContext *const t,
 other_coeffs: ; //Fuck you, C
     uint16_t (*const base_tok)[5] = ts->cdf.coef.base_tok[t_dim->ctx][chroma];
     for (int i = eob-1; i >= 1; i--) {
-        rc = scan[i].rc;
         lvlp = lvl + scan[i].off;
 
         // lo tok
         ctx = get_coef_nz_ctx(lvlp, scan[i].nz, stride, tx, tx_class);
         tok = dav1d_msac_decode_symbol_adapt4(&ts->msac, base_tok[ctx], 4);
         if (dbg)
-        printf("Post-lo_tok[%d][%d][%d][%d=%d=%d]: r=%d\n",
-               t_dim->ctx, chroma, ctx, i, rc, tok, ts->msac.rng);
+        printf("Post-lo_tok[%d][%d][%d][%d=%d]: r=%d\n",
+               t_dim->ctx, chroma, ctx, i, tok, ts->msac.rng);
         if (!tok) continue;
+        rc = scan[i].rc;
         next[rc] = last;
         last = rc;
         *lvlp = tok;
