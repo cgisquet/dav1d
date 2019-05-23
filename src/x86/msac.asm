@@ -81,17 +81,19 @@ DECLARE_REG_TMP 2, 3, 4, 1, 5, 6, 5, 2
 
 INIT_XMM sse2
 cglobal msac_decode_symbol_adapt4, 0, 6, 6
+    pcmpeqw        m4, m4
     DECODE_SYMBOL_ADAPT_INIT
     LEA           rax, pw_0xff00
     movd           m2, [t0+msac.rng]
     movq           m1, [t1]
     movp           m3, [t0+msac.dif]
+    psllw          m4, 8
     mov           t3d, [t0+msac.update_cdf]
     mov           t4d, t2d
     neg            t2
     pshuflw        m2, m2, q0000
     movd     [buf+12], m2
-    pand           m2, [rax]
+    pand           m2, m4
     mova           m0, m1
     psrlw          m1, 6
     psllw          m1, 7
@@ -211,11 +213,13 @@ cglobal msac_decode_symbol_adapt4, 0, 6, 6
     RET
 
 cglobal msac_decode_symbol_adapt8, 0, 6, 6
+    pcmpeqw        m4, m4
     DECODE_SYMBOL_ADAPT_INIT
     LEA           rax, pw_0xff00
     movd           m2, [t0+msac.rng]
     movu           m1, [t1]
     movp           m3, [t0+msac.dif]
+    psllw          m4, 8
     mov           t3d, [t0+msac.update_cdf]
     mov           t4d, t2d
     neg            t2
