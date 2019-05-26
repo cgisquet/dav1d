@@ -138,13 +138,13 @@ static int copy_subcoefs(coef *coeff,
      * dimensions are non-zero. This leads to braching to specific optimized
      * simd versions (e.g. dc-only) so that we get full asm coverage in this
      * test */
-    const int16_t *const scan = dav1d_scans[tx][dav1d_tx_type_class[txtp]];
+    const scanpos *const scan = dav1d_scanpos[tx][dav1d_tx_type_class[txtp]];
     const int sub_high = subsh > 0 ? subsh * 8 - 1 : 0;
     const int sub_low  = subsh > 1 ? sub_high - 8 : 0;
     int n, eob;
 
     for (n = 0, eob = 0; n < sw * sh; n++) {
-        const int rc = scan[n];
+        const int rc = scan[n].rc;
         const int rcx = rc % sh, rcy = rc / sh;
 
         /* Pick a random eob within this sub-itx */
@@ -157,7 +157,7 @@ static int copy_subcoefs(coef *coeff,
     if (eob)
         eob += rnd() % (n - eob - 1);
     for (n = eob + 1; n < sw * sh; n++)
-        coeff[scan[n]] = 0;
+        coeff[scan[n].rc] = 0;
     for (; n < 32 * 32; n++)
         coeff[n] = rnd();
     return eob;

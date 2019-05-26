@@ -1,3 +1,5 @@
+#define DAV1D_DERIVE_SCANS
+
 #include <stdio.h>
 #include "src/tables.c"
 #include "src/scan.c"
