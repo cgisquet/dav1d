@@ -34,7 +34,6 @@
 
 typedef struct { int16_t rc; int16_t off; uint8_t nz; uint8_t br; } scanpos;
 
-extern const int16_t *const dav1d_scans[N_RECT_TX_SIZES][3];
 extern const scanpos *const dav1d_scanpos[N_RECT_TX_SIZES][3];
 
 #endif /* DAV1D_SRC_SCAN_H */

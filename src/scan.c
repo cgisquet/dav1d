@@ -30,6 +30,7 @@
 #include "common/attributes.h"
 #include "src/scan.h"
 
+#ifdef DAV1D_DERIVE_SCANS
 static const int16_t ALIGN(av1_default_scan_4x4[], 32) = {
      0,  4,  1,  2,
      5,  8, 12,  9,
@@ -526,6 +527,7 @@ const int16_t *const dav1d_scans[N_RECT_TX_SIZES][3] = {
         [TX_CLASS_2D] = av1_default_scan_32x16,
     },
 };
+#endif
 
 static const scanpos ALIGN(av1_default_scanpos_4X4[], 32) = {
  { 0, 0, 0, 0}, { 4, 8, 1, 7}, { 1, 1, 5, 7}, { 2, 2,10,14},
