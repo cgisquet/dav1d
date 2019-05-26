@@ -351,13 +351,13 @@ dequant:
               // dequant, see 7.12.3
               cul_level += tok;
               tok = ((dq * tok) & 0xffffff) >> dq_shift;
+              cf[rc] = imin(tok - sign, cf_max) ^ -sign;
           } else {
               cul_level += tok;
               tok *= dq;
               tok >>= dq_shift;
+              cf[rc] = (tok - sign) ^ -sign;
           }
-
-          cf[rc] = imin(tok - sign, cf_max) ^ -sign;
       }
     } else {
     for (int rc = last; rc != 0xFFFF; rc = next[rc]) {
@@ -382,13 +382,14 @@ dequant:
             // dequant, see 7.12.3
             cul_level += tok;
             tok = ((dq * tok) & 0xffffff) >> dq_shift;
+            cf[rc] = imin(tok - sign, cf_max) ^ -sign;
         } else {
             cul_level += tok;
             tok *= dq;
             tok >>= dq_shift;
+            cf[rc] = (tok - sign) ^ -sign;
         }
 
-        cf[rc] = imin(tok - sign, cf_max) ^ -sign;
     }
     }
 
