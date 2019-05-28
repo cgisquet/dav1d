@@ -1074,7 +1074,7 @@ static int add_tpl_ref_mv(const AV1_COMMON *cm, const MACROBLOCKD *xd,
                           int blk_row, int blk_col, int_mv *gm_mv_candidates,
                           uint8_t refmv_count[MODE_CTX_REF_FRAMES],
                           CANDIDATE_MV ref_mv_stacks[][MAX_REF_MV_STACK_SIZE],
-                          int16_t *mode_context) {
+                          int16_t *mode_context, MV_REFERENCE_FRAME *rf) {
   POSITION mi_pos;
   int idx;
   const int weight_unit = 1;  // mi_size_wide[BLOCK_8X8];
@@ -1087,9 +1087,6 @@ static int add_tpl_ref_mv(const AV1_COMMON *cm, const MACROBLOCKD *xd,
   const TPL_MV_REF *prev_frame_mvs =
       cm->tpl_mvs + ((mi_row + mi_pos.row) >> 1) * (cm->mi_stride >> 1) +
       ((mi_col + mi_pos.col) >> 1);
-
-  MV_REFERENCE_FRAME rf[2];
-  av1_set_ref_frame(rf, ref_frame);
 
   if (rf[1] == NONE_FRAME) {
     int cur_frame_index = cm->cur_frame.cur_frame_offset;
@@ -1269,12 +1266,14 @@ static void setup_ref_mv_list(
     int step_w = (xd->n8_w >= mi_size_wide[BLOCK_64X64])
                      ? mi_size_wide[BLOCK_16X16]
                      : mi_size_wide[BLOCK_8X8];
+    MV_REFERENCE_FRAME rf[2];
+    av1_set_ref_frame(rf, ref_frame);
 
     for (int blk_row = 0; blk_row < blk_row_end; blk_row += step_h) {
       for (int blk_col = 0; blk_col < blk_col_end; blk_col += step_w) {
         int ret = add_tpl_ref_mv(cm, xd, mi_row, mi_col, ref_frame, blk_row,
                                  blk_col, gm_mv_candidates, refmv_count,
-                                 ref_mv_stack, mode_context);
+                                 ref_mv_stack, mode_context, rf);
         if (blk_row == 0 && blk_col == 0) is_available = ret;
       }
     }
@@ -1287,7 +1286,7 @@ static void setup_ref_mv_list(
 
       if (!check_sb_border(mi_row, mi_col, blk_row, blk_col)) continue;
       add_tpl_ref_mv(cm, xd, mi_row, mi_col, ref_frame, blk_row, blk_col,
-                     gm_mv_candidates, refmv_count, ref_mv_stack, mode_context);
+                     gm_mv_candidates, refmv_count, ref_mv_stack, mode_context, rf);
     }
   }
 
