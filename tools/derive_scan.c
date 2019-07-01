@@ -1,12 +1,14 @@
 #define DAV1D_DERIVE_SCANS
 
+#include "config.h"
+
 #include <stdio.h>
 #include "src/tables.c"
 #include "src/scan.c"
 
 int main(void)
 {
-  static const char *TX_CLASSES[3] = { "TX_CLASS_2D", "TX_CLASS_V", "TX_CLASS_H" };
+  //static const char *TX_CLASSES[3] = { "TX_CLASS_2D", "TX_CLASS_V", "TX_CLASS_H" };
   static const char *SCAN_TYPE[3] = { "default", "mcol", "mrow" };
   static const char *TX_SIZES[N_RECT_TX_SIZES] = {
     // First square - TxfmSize
