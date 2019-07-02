@@ -209,6 +209,44 @@ int decode_coefs_inline(const int qm, Dav1dTileContext *const t,
             *levelp = (uint8_t) tok;
         }
 acs:
+        if (TX_CLASS_2D == tx_class) {
+        for (int i = eob - 1; i > 0; i--) { // ac
+            const int rc = scan[i].rc;
+            uint8_t *lvlp = lvl + scan[i].off;
+
+            // lo tok
+            const int ctx = get_coef_nz_ctx(lvlp, tx, TX_CLASS_2D, scan[i].nz, stride);
+            uint16_t *const lo_cdf = base_tok[ctx];
+            int tok = dav1d_msac_decode_symbol_adapt4(&ts->msac, lo_cdf, 4);
+            if (dbg)
+                printf("Post-lo_tok[%d][%d][%d][%d=%d=%d]: r=%d\n",
+                       t_dim->ctx, chroma, ctx, i, rc, tok, ts->msac.rng);
+
+            if (!tok) continue;
+            next[rc] = last;
+            last = rc;
+            *lvlp = tok;
+
+            // hi tok
+            uint8_t *levelp = levels + scan[i].off;
+            if (tok == 3) {
+                const int br_ctx = get_br_ctx(levelp, TX_CLASS_2D, scan[i].br, stride);
+                do {
+                    const int tok_br = dav1d_msac_decode_symbol_adapt4(&ts->msac,
+                                           br_cdf[br_ctx], 4);
+                    if (dbg)
+                        printf("Post-hi_tok[%d][%d][%d][%d=%d=%d->%d]: r=%d\n",
+                               imin(t_dim->ctx, 3), chroma, br_ctx,
+                               i, rc, tok_br, tok, ts->msac.rng);
+                    tok += tok_br;
+                    if (tok_br < 3) break;
+                } while (tok < 15);
+            }
+
+            cf[rc] = tok;
+            *levelp = (uint8_t) tok;
+        }
+        } else {
         for (int i = eob - 1; i > 0; i--) { // ac
             const int rc = scan[i].rc;
             uint8_t *lvlp = lvl + scan[i].off;
@@ -244,6 +282,7 @@ acs:
 
             cf[rc] = tok;
             *levelp = (uint8_t) tok;
+        }
         }
         { // dc
             int ctx = 0;
