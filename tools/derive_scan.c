@@ -18,6 +18,7 @@ int main(void)
     "64X32", "4X16", "16X4", "8X32", "32X8", "16X64", "64X16",
   };
 
+  for (int type = 0; type < 3; type++)
   for (int tx = 0; tx < N_RECT_TX_SIZES; tx++) {
     const TxfmInfo *const t_dim = dav1d_txfm_dimensions+tx;
     if (t_dim->w==16 || t_dim->h==16)
@@ -33,8 +34,19 @@ int main(void)
 
       if (tx_class == TX_CLASS_H) stride = 4 * (imin(t_dim->w, 8) + 1);
 
+      switch (type)
+      {
+      case 0:
       printf("static const scanpos ALIGN(av1_%s_scanpos_%s[], 32) = {\n",
-             SCAN_TYPE[tx_class], TX_SIZES[tx]);
+             SCAN_TYPE[tx_class], TX_SIZES[tx]); break;
+      case 1:
+      printf("static const uint8_t av1_%s_scanctx_%s[] = {\n",
+             SCAN_TYPE[tx_class], TX_SIZES[tx]); break;
+      case 2:
+      printf("static const uint8_t av1_%s_scanbr_%s[] = {\n",
+             SCAN_TYPE[tx_class], TX_SIZES[tx]); break;
+      }
+      
       for (int i = 0; i < 4*t_dim->h; i++) {
         for (int j = 0; j < 4*t_dim->w; j++) {
           int zz = j + i*4*t_dim->w;
@@ -60,7 +72,12 @@ int main(void)
             break;
           }
           if (!rc) br = 0;
-          printf(" {%*i,%*i,%2i,%2i},", psize, rc, psize, offset, nz, br);
+          switch (type)
+          {
+          case 0: printf(" {%*i,%*i},", psize, rc, psize, offset); break;
+          case 1: printf(" %2i,", nz); break;
+          case 2: printf(" %2i,", br); break;
+          }
 #else
           printf(" %*i,", psize, rc);
 #endif

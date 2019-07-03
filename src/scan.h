@@ -32,8 +32,10 @@
 
 #include "src/levels.h"
 
-typedef struct { int16_t rc; int16_t off; uint8_t nz; uint8_t br; } scanpos;
+typedef struct { int16_t rc; int16_t off; } scanpos;
 
 extern const scanpos *const dav1d_scanpos[N_RECT_TX_SIZES][3];
+extern const uint8_t *const dav1d_scanctx[N_RECT_TX_SIZES][3];
+extern const uint8_t *const dav1d_scanbr[N_RECT_TX_SIZES][3];
 
 #endif /* DAV1D_SRC_SCAN_H */
