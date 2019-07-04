@@ -58,20 +58,40 @@ static void backup2x8(pixel dst[3][8][2],
                       const ptrdiff_t src_stride[2], int x_off,
                       const enum Dav1dPixelLayout layout)
 {
-    ptrdiff_t y_off = 0;
-    for (int y = 0; y < 8; y++, y_off += PXSTRIDE(src_stride[0]))
-        pixel_copy(dst[0][y], &src[0][y_off + x_off - 2], 2);
+    pixel *const luma = &src[0][x_off - 2];
+    pixel_copy(dst[0][0], luma+0*PXSTRIDE(src_stride[0]), 2);
+    pixel_copy(dst[0][1], luma+1*PXSTRIDE(src_stride[0]), 2);
+    pixel_copy(dst[0][2], luma+2*PXSTRIDE(src_stride[0]), 2);
+    pixel_copy(dst[0][3], luma+3*PXSTRIDE(src_stride[0]), 2);
+    pixel_copy(dst[0][4], luma+4*PXSTRIDE(src_stride[0]), 2);
+    pixel_copy(dst[0][5], luma+5*PXSTRIDE(src_stride[0]), 2);
+    pixel_copy(dst[0][6], luma+6*PXSTRIDE(src_stride[0]), 2);
+    pixel_copy(dst[0][7], luma+7*PXSTRIDE(src_stride[0]), 2);
 
     if (layout == DAV1D_PIXEL_LAYOUT_I400) return;
     const int ss_ver = layout == DAV1D_PIXEL_LAYOUT_I420;
     const int ss_hor = layout != DAV1D_PIXEL_LAYOUT_I444;
 
     x_off >>= ss_hor;
-    y_off = 0;
-    for (int y = 0; y < (8 >> ss_ver); y++, y_off += PXSTRIDE(src_stride[1])) {
-        pixel_copy(dst[1][y], &src[1][y_off + x_off - 2], 2);
-        pixel_copy(dst[2][y], &src[2][y_off + x_off - 2], 2);
-    }
+    pixel *const u = &src[1][x_off - 2];
+    pixel *const v = &src[2][x_off - 2];
+    pixel_copy(dst[1][0], u+0*PXSTRIDE(src_stride[1]), 2);
+    pixel_copy(dst[2][0], v+0*PXSTRIDE(src_stride[1]), 2);
+    pixel_copy(dst[1][1], u+1*PXSTRIDE(src_stride[1]), 2);
+    pixel_copy(dst[2][1], v+1*PXSTRIDE(src_stride[1]), 2);
+    pixel_copy(dst[1][2], u+2*PXSTRIDE(src_stride[1]), 2);
+    pixel_copy(dst[2][2], v+2*PXSTRIDE(src_stride[1]), 2);
+    pixel_copy(dst[1][3], u+3*PXSTRIDE(src_stride[1]), 2);
+    pixel_copy(dst[2][3], v+3*PXSTRIDE(src_stride[1]), 2);
+    if (ss_ver) return;
+    pixel_copy(dst[1][4], u+4*PXSTRIDE(src_stride[1]), 2);
+    pixel_copy(dst[2][4], v+4*PXSTRIDE(src_stride[1]), 2);
+    pixel_copy(dst[1][5], u+5*PXSTRIDE(src_stride[1]), 2);
+    pixel_copy(dst[2][5], v+5*PXSTRIDE(src_stride[1]), 2);
+    pixel_copy(dst[1][6], u+6*PXSTRIDE(src_stride[1]), 2);
+    pixel_copy(dst[2][6], v+6*PXSTRIDE(src_stride[1]), 2);
+    pixel_copy(dst[1][7], u+7*PXSTRIDE(src_stride[1]), 2);
+    pixel_copy(dst[2][7], v+7*PXSTRIDE(src_stride[1]), 2);
 }
 
 static int adjust_strength(const int strength, const unsigned var) {
