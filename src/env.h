@@ -621,7 +621,6 @@ static FORCE_INLINE int get_coef_nz_ctx(uint8_t *levels,
         mag += levels[1 * stride + 1]
              + levels[2 * stride + 0];
         // [nz] = [imin(y, 4)][imin(x, 4)]
-        nz = dav1d_nz_map_ctx_offset[tx][nz];
     } else {
         mag += levels[3] + levels[4];
         //nz = 26 + imin((tx_class == TX_CLASS_V) ? y : x, 2) * 5
