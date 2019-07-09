@@ -834,19 +834,24 @@ static void add_ref_mv_candidate(
         else
           this_refmv = get_sub_block_mv(candidate, ref, col);
 
-        for (index = 0; index < *refmv_count; ++index)
-          if (ref_mv_stack[index].this_mv.as_int == this_refmv.as_int) break;
-
-        if (index < *refmv_count) ref_mv_stack[index].weight += weight;
+        for (index = 0; index < *refmv_count; ++index) {
+          if (ref_mv_stack[index].this_mv.as_int == this_refmv.as_int) {
+            ref_mv_stack[index].weight += weight;
+            if (have_newmv_in_inter_mode(candidate->mode)) ++*newmv_count;
+            ++*ref_match_count;
+            return;
+          }
+        }
 
         // Add a new item to the list.
-        if (index == *refmv_count && *refmv_count < MAX_REF_MV_STACK_SIZE) {
+        if (*refmv_count < MAX_REF_MV_STACK_SIZE) {
           ref_mv_stack[index].this_mv = this_refmv;
           ref_mv_stack[index].weight = weight;
           ++(*refmv_count);
         }
         if (have_newmv_in_inter_mode(candidate->mode)) ++*newmv_count;
         ++*ref_match_count;
+        return;
       }
     }
   } else {
@@ -863,13 +868,15 @@ static void add_ref_mv_candidate(
 
       for (index = 0; index < *refmv_count; ++index)
         if ((ref_mv_stack[index].this_mv.as_int == this_refmv[0].as_int) &&
-            (ref_mv_stack[index].comp_mv.as_int == this_refmv[1].as_int))
-          break;
-
-      if (index < *refmv_count) ref_mv_stack[index].weight += weight;
+            (ref_mv_stack[index].comp_mv.as_int == this_refmv[1].as_int)) {
+          ref_mv_stack[index].weight += weight;
+          if (have_newmv_in_inter_mode(candidate->mode)) ++*newmv_count;
+          ++*ref_match_count;
+          return;
+        }
 
       // Add a new item to the list.
-      if (index == *refmv_count && *refmv_count < MAX_REF_MV_STACK_SIZE) {
+      if (*refmv_count < MAX_REF_MV_STACK_SIZE) {
         ref_mv_stack[index].this_mv = this_refmv[0];
         ref_mv_stack[index].comp_mv = this_refmv[1];
         ref_mv_stack[index].weight = weight;
