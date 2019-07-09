@@ -225,12 +225,16 @@ int decode_coefs_inline(const int qm, Dav1dTileContext *const t,
             cf[rc] = tok;
             *levelp = (uint8_t) tok;
         }
+
+        const uint8_t *scannz = NULL;
+        if (TX_CLASS_2D == tx_class)
+            scannz = dav1d_nz_map_ctx_offset[t_dim->w == t_dim->h ? 0 : t_dim->w > t_dim->h ? 2 : 1];
         for (int i = eob - 1; i > 0; i--) { // ac
             const int rc = scan[i].rc;
             uint8_t *lvlp = lvl + scan[i].off;
 
             // lo tok
-            const int ctx = get_coef_nz_ctx(lvlp, tx, tx_class, scan[i].nz, stride);
+            const int ctx = get_coef_nz_ctx(lvlp, scannz, scan[i].nz, stride);
             uint16_t *const lo_cdf = base_tok[ctx];
             int tok = dav1d_msac_decode_symbol_adapt4(&ts->msac, lo_cdf, 3);
             if (dbg)
@@ -257,7 +261,7 @@ int decode_coefs_inline(const int qm, Dav1dTileContext *const t,
         }
         { // dc
             const int ctx = (tx_class != TX_CLASS_2D) ?
-                get_coef_nz_ctx(lvl, tx, tx_class, 26, stride) : 0;
+                get_coef_nz_ctx(lvl, NULL, 26, stride) : 0;
             uint16_t *const lo_cdf = base_tok[ctx];
             dc_tok = dav1d_msac_decode_symbol_adapt4(&ts->msac, lo_cdf, 3);
             if (!dc_tok)
