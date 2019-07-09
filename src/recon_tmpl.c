@@ -187,7 +187,12 @@ int decode_coefs_inline(const int qm, Dav1dTileContext *const t,
         const int sw = imin(t_dim->w, 8), sh = imin(t_dim->h, 8);
         ptrdiff_t stride = 4 * (sh + 1);
         uint8_t *const lvl = levels + stride * 4 * (sw + 1);
-        memset(levels, 0, 2 * stride * 4 * (sw + 1));
+        typedef struct { uint64_t u64[2]; } sse;
+        sse zero = { { 0, 0 } };
+        for (int i = 0; i < 2 * stride * 4 * (sw + 1); i+= 32) {
+            *(sse*)(levels+i+ 0) = zero;
+            *(sse*)(levels+i+16) = zero;
+        }
         uint16_t (*const base_tok)[4] = ts->cdf.coef.base_tok[t_dim->ctx][chroma];
         if (tx_class == TX_CLASS_H) stride = 4 * (sw + 1);
 
