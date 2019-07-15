@@ -1755,8 +1755,8 @@ static int motion_field_projection(AV1_COMMON *cm, MV_REFERENCE_FRAME ref_frame,
                                    const int from_x4, const int to_x4,
                                    const int from_y4, const int to_y4) {
   TPL_MV_REF *tpl_mvs_base = cm->tpl_mvs;
-  int ref_offset[TOTAL_REFS_PER_FRAME] = { 0 };
-  int ref_sign[TOTAL_REFS_PER_FRAME] = { 0 };
+  uint8_t ref_offset[TOTAL_REFS_PER_FRAME] = { 0 };
+  uint8_t ref_sign[TOTAL_REFS_PER_FRAME] = { 0 };
 
   (void)dir;
 
@@ -1781,8 +1781,8 @@ static int motion_field_projection(AV1_COMMON *cm, MV_REFERENCE_FRAME ref_frame,
   unsigned int *ref_rf_idx =
       &cm->buffer_pool.frame_bufs[ref_frame_idx].ref_frame_offset[0];
 
-  int ref_use[1*TOTAL_REFS_PER_FRAME+1];
-  int *ref_p = ref_use + 1;
+  uint8_t ref_use[1*TOTAL_REFS_PER_FRAME+1];
+  uint8_t *ref_p = ref_use + 1;
   ref_p[-1] = ref_p[0] = 0;
   for (MV_REFERENCE_FRAME rf = LAST_FRAME; rf <= INTER_REFS_PER_FRAME; ++rf) {
     ref_offset[rf] =
