@@ -1750,32 +1750,36 @@ static FORCE_INLINE int get_proj_and_pos(AV1_COMMON *cm, int *mi_r, int *mi_c, i
   return 1;
 }
 
-static int motion_field_projection(AV1_COMMON *cm, MV_REFERENCE_FRAME ref_frame,
-                                   int dir,
+static int motion_field_projection(AV1_COMMON *cm, MV_REFERENCE_FRAME* ref_frames,
+                                   int* dirs, int num_refs,
                                    const int from_x4, const int to_x4,
                                    const int from_y4, const int to_y4) {
-  TPL_MV_REF *tpl_mvs_base = cm->tpl_mvs;
+  const int cur_frame_index = cm->cur_frame.cur_frame_offset;
+  const int mvs_rows = (cm->mi_rows + 1) >> 1;
+  const int mvs_cols = (cm->mi_cols + 1) >> 1;
+
+  assert(from_y4 >= 0);
+  const int row_start8 = from_y4 >> 1;
+  const int row_end8 = imin(to_y4 >> 1, mvs_rows);
+  const int col_start8 = imax((from_x4 - (MAX_OFFSET_WIDTH >> 2)) >> 1, 0);
+  const int col_end8 = imin((to_x4 + (MAX_OFFSET_WIDTH >> 2)) >> 1, mvs_cols);
+  int count = ((to_x4 >> 1) - (from_x4 >> 1))
+            * ((to_y4 >> 1) - row_start8);
+
+  for (int ref = 0; ref < num_refs; ref++)
+  {
   uint8_t ref_offset[TOTAL_REFS_PER_FRAME] = { 0 };
   uint8_t ref_sign[TOTAL_REFS_PER_FRAME] = { 0 };
-
-  (void)dir;
+  TPL_MV_REF *tpl_mvs_base = cm->tpl_mvs;
+  int ref_frame = ref_frames[ref];
+  int dir = dirs[ref];
 
   int ref_frame_idx = cm->frame_refs[FWD_RF_OFFSET(ref_frame)].idx;
-  if (ref_frame_idx < 0) return 0;
-
-  if (cm->buffer_pool.frame_bufs[ref_frame_idx].intra_only) return 0;
-
-  if (cm->buffer_pool.frame_bufs[ref_frame_idx].mi_rows != cm->mi_rows ||
-      cm->buffer_pool.frame_bufs[ref_frame_idx].mi_cols != cm->mi_cols)
-    return 0;
 
   int ref_frame_index =
       cm->buffer_pool.frame_bufs[ref_frame_idx].cur_frame_offset;
-  int cur_frame_index = cm->cur_frame.cur_frame_offset;
   int ref_to_cur = get_relative_dist(cm, ref_frame_index, cur_frame_index);
   if (dir == 2) ref_to_cur = -ref_to_cur;
-  if (abs(ref_to_cur) > MAX_FRAME_DISTANCE)
-    return 1;
   dir >>= 1;
 
   unsigned int *ref_rf_idx =
@@ -1803,25 +1807,17 @@ static int motion_field_projection(AV1_COMMON *cm, MV_REFERENCE_FRAME ref_frame,
   MV_REF *mv_ref_base = cm->buffer_pool.frame_bufs[ref_frame_idx].mvs;
   ptrdiff_t mv_stride =
     cm->buffer_pool.frame_bufs[ref_frame_idx].mv_stride;
-  const int mvs_rows = (cm->mi_rows + 1) >> 1;
-  const int mvs_cols = (cm->mi_cols + 1) >> 1;
-
-  assert(from_y4 >= 0);
-  const int row_start8 = from_y4 >> 1;
-  const int row_end8 = imin(to_y4 >> 1, mvs_rows);
-  const int col_start8 = imax((from_x4 - (MAX_OFFSET_WIDTH >> 2)) >> 1, 0);
-  const int col_end8 = imin((to_x4 + (MAX_OFFSET_WIDTH >> 2)) >> 1, mvs_cols);
   int scale[MAX_FRAME_DISTANCE+1];
   for (int den = 0; den < MAX_FRAME_DISTANCE+1; den++)
       scale[den] = ref_to_cur * div_mult[den];
 
-  mv_ref_base += (2*row_start8+1)*mv_stride+1;
+  mv_ref_base += (2*row_end8-2+1)*mv_stride+1;
   mv_stride <<= 1;
 
   int_mv last_mv[2] = { { .as_int = INVALID_MV }, { .as_int = INVALID_MV } };
   int last_r[2], last_c[2], last_offset[2];
-  for (int blk_row = row_start8; blk_row < row_end8; ++blk_row, mv_ref_base += mv_stride) {
-    for (int blk_col = col_start8; blk_col < col_end8; ++blk_col) {
+  for (int blk_row = row_end8-1; blk_row >= row_start8; blk_row--, mv_ref_base -= mv_stride) {
+    for (int blk_col = col_end8-1; blk_col >= col_start8; blk_col--) {
       MV_REF *mv_ref = &mv_ref_base[blk_col << 1];
       int diridx;
       const int ref0 = mv_ref->ref_frame[0], ref1 = mv_ref->ref_frame[1];
@@ -1881,9 +1877,16 @@ static int motion_field_projection(AV1_COMMON *cm, MV_REFERENCE_FRAME ref_frame,
 
       int mi_offset = mi_r * (cm->mi_stride >> 1) + mi_c;
 
+      // Only replaced if not set or by the current loop
+      if (!tpl_mvs_base[mi_offset].ref_frame_offset)
+      {
       tpl_mvs_base[mi_offset].mfmv0.as_int = fwd_mv.as_int;
       tpl_mvs_base[mi_offset].ref_frame_offset = ref_frame_offset;
+      count--;
+      if (!count) return 1;
+      }
     }
+  }
   }
 
   return 1;
@@ -2155,6 +2158,26 @@ int dav1d_init_ref_mv_common(AV1_COMMON *cm, const int w8, const int h8,
     return 0;
 }
 
+static int check_mf(AV1_COMMON *cm, MV_REFERENCE_FRAME ref_frame)
+{
+  int ref_frame_idx = cm->frame_refs[FWD_RF_OFFSET(ref_frame)].idx;
+  if (ref_frame_idx < 0) return 0;
+
+  if (cm->buffer_pool.frame_bufs[ref_frame_idx].intra_only) return 0;
+
+  if (cm->buffer_pool.frame_bufs[ref_frame_idx].mi_rows != cm->mi_rows ||
+      cm->buffer_pool.frame_bufs[ref_frame_idx].mi_cols != cm->mi_cols)
+    return 0;
+
+  int ref_frame_index =
+      cm->buffer_pool.frame_bufs[ref_frame_idx].cur_frame_offset;
+  int cur_frame_index = cm->cur_frame.cur_frame_offset;
+  int ref_to_cur = get_relative_dist(cm, ref_frame_index, cur_frame_index);
+  return abs(ref_to_cur) > MAX_FRAME_DISTANCE ? 2 : 1;
+}
+
+#define COMPAT  0
+
 void dav1d_init_ref_mv_tile_row(AV1_COMMON *cm,
                                 int tile_col_start4, int tile_col_end4,
                                 int row_start4, int row_end4);
@@ -2167,6 +2190,8 @@ void dav1d_init_ref_mv_tile_row(AV1_COMMON *cm,
   int *const ref_buf_idx = cm->ref_buf_idx;
   int *const ref_order_hint = cm->ref_order_hint;
 
+  MV_REFERENCE_FRAME ref_frames[MFMV_STACK_SIZE];
+  int dirs[MFMV_STACK_SIZE], skip_last = 1;
   int ref_stamp = MFMV_STACK_SIZE - 1;
 
   if (ref_buf_idx[LAST_FRAME - LAST_FRAME] >= 0) {
@@ -2176,37 +2201,112 @@ void dav1d_init_ref_mv_tile_row(AV1_COMMON *cm,
 
     const int is_lst_overlay =
         (alt_of_lst_order_hint == ref_order_hint[GOLDEN_FRAME - LAST_FRAME]);
-      if (!is_lst_overlay) motion_field_projection(cm, LAST_FRAME, 2,
-                                                   tile_col_start4, tile_col_end4,
-                                                   row_start4, row_end4);
-    --ref_stamp;
+      if (!is_lst_overlay)
+        switch (check_mf(cm, LAST_FRAME))
+        {
+        case 1:
+          skip_last = 0; // in all other cases, accounted for, but not used
+          /* fallthrough */
+        case 2:
+          ref_frames[ref_stamp] = LAST_FRAME;
+          dirs[ref_stamp] = 2;
+#if COMPAT
+          motion_field_projection(cm, ref_frames+ref_stamp, dirs+ref_stamp,
+                            1, tile_col_start4, tile_col_end4,
+                            row_start4, row_end4);
+#endif
+          /* fallthrough */
+        default: break;
+        }
+      ref_stamp--;
   }
 
   if (get_relative_dist(cm, ref_order_hint[BWDREF_FRAME - LAST_FRAME],
                         cur_order_hint) > 0) {
-      if (motion_field_projection(cm, BWDREF_FRAME, 0,
-                                  tile_col_start4, tile_col_end4,
-                                  row_start4, row_end4)) --ref_stamp;
+    switch (check_mf(cm, BWDREF_FRAME))
+    {
+    case 1:
+      ref_frames[ref_stamp] = BWDREF_FRAME;
+      dirs[ref_stamp] = 0;
+#if COMPAT
+      motion_field_projection(cm, ref_frames+ref_stamp, dirs+ref_stamp,
+                        1, tile_col_start4, tile_col_end4,
+                        row_start4, row_end4);
+#endif
+      /* fallthrough */
+    case 2:
+      ref_stamp--;
+      break;
+    case 0: break;
+    }
   }
 
   if (get_relative_dist(cm, ref_order_hint[ALTREF2_FRAME - LAST_FRAME],
                         cur_order_hint) > 0) {
-      if (motion_field_projection(cm, ALTREF2_FRAME, 0,
-                                  tile_col_start4, tile_col_end4,
-                                  row_start4, row_end4)) --ref_stamp;
+    switch (check_mf(cm, ALTREF2_FRAME))
+    {
+    case 1:
+      ref_frames[ref_stamp] = ALTREF2_FRAME;
+      dirs[ref_stamp] = 0;
+#if COMPAT
+      motion_field_projection(cm, ref_frames+ref_stamp, dirs+ref_stamp,
+                        1, tile_col_start4, tile_col_end4,
+                        row_start4, row_end4);
+#endif
+      /* fallthrough */
+    case 2:
+      ref_stamp--;
+      break;
+    case 0: break;
+    }
   }
 
   if (get_relative_dist(cm, ref_order_hint[ALTREF_FRAME - LAST_FRAME],
                         cur_order_hint) > 0 &&
       ref_stamp >= 0)
-      if (motion_field_projection(cm, ALTREF_FRAME, 0,
-                                  tile_col_start4, tile_col_end4,
-                                  row_start4, row_end4)) --ref_stamp;
+    switch (check_mf(cm, ALTREF_FRAME))
+    {
+    case 1:
+      ref_frames[ref_stamp] = ALTREF_FRAME;
+      dirs[ref_stamp] = 0;
+#if COMPAT
+      motion_field_projection(cm, ref_frames+ref_stamp, dirs+ref_stamp,
+                        1, tile_col_start4, tile_col_end4,
+                        row_start4, row_end4);
+#endif
+      /* fallthrough */
+    case 2:
+      ref_stamp--;
+      break;
+    case 0: break;
+    }
 
   if (ref_stamp >= 0 && ref_buf_idx[LAST2_FRAME - LAST_FRAME] >= 0)
-      if (motion_field_projection(cm, LAST2_FRAME, 2,
-                                  tile_col_start4, tile_col_end4,
-                                  row_start4, row_end4)) --ref_stamp;
+    switch (check_mf(cm, LAST2_FRAME))
+    {
+    case 1:
+      ref_frames[ref_stamp] = LAST2_FRAME;
+      dirs[ref_stamp] = 0;
+#if COMPAT
+      motion_field_projection(cm, ref_frames+ref_stamp, dirs+ref_stamp,
+                        1, tile_col_start4, tile_col_end4,
+                        row_start4, row_end4);
+#endif
+      /* fallthrough */
+    case 2:
+      ref_stamp--;
+      break;
+    case 0: break;
+    }
+
+#if !COMPAT
+  int num_refs = MFMV_STACK_SIZE - 1 - (ref_stamp+skip_last);
+  if (num_refs > 0)
+    motion_field_projection(cm, ref_frames+ref_stamp+1, dirs+ref_stamp+1,
+                            num_refs,
+                            tile_col_start4, tile_col_end4,
+                            row_start4, row_end4);
+#endif
 }
 
 AV1_COMMON *dav1d_alloc_ref_mv_common(void);
