@@ -214,7 +214,7 @@ int decode_coefs_inline(const int qm, Dav1dTileContext *const t,
             uint8_t *levelp = levels + scan[eob].off;
             // hi tok
             if (tok_br == 2) {
-                const int br_ctx = get_br_ctx(levelp, tx_class, scan[eob].br, stride);
+                const int br_ctx = scan[eob].br;
                 tok = dav1d_msac_decode_hi_tok(&ts->msac, br_cdf[br_ctx]);
                 if (dbg)
                     printf("Post-hi_tok[%d][%d][%d][%d=%d=%d]: r=%d\n",
@@ -283,8 +283,6 @@ int decode_coefs_inline(const int qm, Dav1dTileContext *const t,
         uint16_t *const lo_cdf = ts->cdf.coef.eob_base_tok[t_dim->ctx][chroma][0];
         int tok_br = dav1d_msac_decode_symbol_adapt4(&ts->msac, lo_cdf, 2);
         dc_tok = 1 + tok_br;
-        if (!dc_tok)
-            goto dequant;
 
         if (dbg)
             printf("Post-dc_lo_tok[%d][%d][%d][%d]: r=%d\n",
