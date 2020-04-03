@@ -443,6 +443,7 @@ static int decode_coefs(Dav1dTileContext *const t,
     // base tokens
     uint16_t (*const eob_cdf)[4] = ts->cdf.coef.eob_base_tok[t_dim->ctx][chroma];
     uint16_t (*const hi_cdf)[4] = ts->cdf.coef.br_tok[imin(t_dim->ctx, 3)][chroma];
+    int16_t *rcpos = t->scratch.ac;
     const uint16_t *const scan = dav1d_scans[tx][tx_class];
     int dc_tok;
 
@@ -474,7 +475,8 @@ static int decode_coefs(Dav1dTileContext *const t,
                        imin(t_dim->ctx, 3), chroma, ctx, eob, rc, tok, \
                        ts->msac.rng); \
         } \
-        cf[rc] = tok; \
+        *rcpos++ = rc; \
+        *rcpos++ = tok; \
         if (tx_class == TX_CLASS_H) \
             /* Transposing reduces the stride and padding requirements */ \
             levels[y * stride + x] = (uint8_t) level_tok; \
@@ -491,6 +493,7 @@ static int decode_coefs(Dav1dTileContext *const t,
             if (tx_class == TX_CLASS_2D) \
                 y |= x; \
             tok = dav1d_msac_decode_symbol_adapt4(&ts->msac, lo_cdf[ctx], 3); \
+            if (!tok) continue; \
             level_tok = tok * 0x41; \
             if (dbg) \
                 printf("Post-lo_tok[%d][%d][%d][%d=%d=%d]: r=%d\n", \
@@ -506,7 +509,8 @@ static int decode_coefs(Dav1dTileContext *const t,
                            imin(t_dim->ctx, 3), chroma, ctx, i, rc, tok, \
                            ts->msac.rng); \
             } \
-            cf[rc] = tok; \
+            *rcpos++ = rc; \
+            *rcpos++ = tok; \
             *level = (uint8_t) level_tok; \
         } \
         /* dc */ \
@@ -600,23 +604,22 @@ static int decode_coefs(Dav1dTileContext *const t,
         dc_tok = ((dq * dc_tok) & 0xffffff) >> dq_shift;
         cf[0] = imin(dc_tok - sign, cf_max) ^ -sign;
     }
-    for (int i = 1; i <= eob; i++) { // ac
-        const int rc = scan[i];
-        int tok = cf[rc];
-        if (!tok) continue;
+    while (--rcpos >= t->scratch.ac) { // ac
+        int tok = *rcpos;
+        const int rc = *--rcpos;
 
         // sign
         const int sign = dav1d_msac_decode_bool_equi(&ts->msac);
         const unsigned dq = (dq_tbl[1] * qm_tbl[rc] + 16) >> 5;
         if (dbg)
-            printf("Post-sign[%d=%d=%d]: r=%d\n", i, rc, sign, ts->msac.rng);
+            printf("Post-sign[%d=%d]: r=%d\n", rc, sign, ts->msac.rng);
 
         // residual
         if (tok == 15) {
             tok += read_golomb(&ts->msac);
             if (dbg)
-                printf("Post-residual[%d=%d=%d->%d]: r=%d\n",
-                       i, rc, tok - 15, tok, ts->msac.rng);
+                printf("Post-residual[%d=%d->%d]: r=%d\n",
+                       rc, tok - 15, tok, ts->msac.rng);
 
             // coefficient parsing, see 5.11.39
             tok &= 0xfffff;
