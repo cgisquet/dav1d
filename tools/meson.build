@@ -86,3 +86,9 @@ dav1d = executable('dav1d',
     dependencies : [getopt_dependency, thread_dependency, rt_dependency],
     install : true,
 )
+
+executable('derive',
+    files('derive_scan.c'),
+    include_directories : [dav1d_inc_dirs],
+    install : false,
+)

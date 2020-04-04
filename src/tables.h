@@ -57,7 +57,7 @@ extern const uint8_t /* enum TxfmType */ dav1d_tx_types_per_set[40];
 
 extern const uint8_t dav1d_filter_mode_to_y_mode[5];
 extern const uint8_t dav1d_ymode_size_context[N_BS_SIZES];
-extern const uint8_t dav1d_lo_ctx_offsets[3][5][5];
+extern const uint8_t dav1d_lo_ctx_offsets[3][5*5];
 extern const uint8_t dav1d_skip_ctx[5][5];
 extern const uint8_t /* enum TxClass */
                      dav1d_tx_type_class[N_TX_TYPES_PLUS_LL];
