@@ -115,7 +115,7 @@ int dav1d_refmvs_init_frame(refmvs_frame *rf,
 // tile/sbrow at a time, where col_{start,end}8 are the tile boundaries; or
 // it can just be for the whole frame's sbrow, where col_{start,end}8 are the
 // frame boundaries. row_{start,end}8 are the superblock row boundaries.
-void dav1d_refmvs_load_tmvs(const refmvs_frame *rf, int tile_row_idx,
+void dav1d_refmvs_load_tmvs(const refmvs_frame *const rf, int tile_row_idx,
                             int col_start8, int col_end8,
                             int row_start8, int row_end8);
 
