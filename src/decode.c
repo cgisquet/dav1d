@@ -1295,7 +1295,7 @@ static int decode_b(Dav1dTileContext *const t,
             }
         }
         if (IS_INTER_OR_SWITCH(f->frame_hdr) || f->frame_hdr->allow_intrabc) {
-            splat_intraref(&t->rt, t->by, t->bx, bs);
+            splat_intraref(&f->c->splat_dsp,&t->rt, t->by, t->bx, bs);
         }
     } else if (IS_KEY_OR_INTRA(f->frame_hdr)) {
         // intra block copy
@@ -1392,7 +1392,7 @@ static int decode_b(Dav1dTileContext *const t,
             if (f->bd_fn.recon_b_inter(t, bs, b)) return -1;
         }
 
-        splat_intrabc_mv(&t->rt, t->by, t->bx, bs, b->mv[0]);
+        splat_intrabc_mv(&f->c->splat_dsp, &t->rt, t->by, t->bx, bs, b->mv[0]);
 
 #define set_ctx(type, dir, diridx, off, mul, rep_macro) \
         rep_macro(type, t->dir tx_intra, off, mul * b_dim[2 + diridx]); \
@@ -1935,11 +1935,11 @@ static int decode_b(Dav1dTileContext *const t,
 
         // context updates
         if (is_comp) {
-            splat_tworef_mv(&t->rt, t->by, t->bx, bs, b->inter_mode,
+            splat_tworef_mv(&f->c->splat_dsp, &t->rt, t->by, t->bx, bs, b->inter_mode,
                             (refmvs_refpair) { .ref = { b->ref[0], b->ref[1] }},
                             (refmvs_mvpair) { .mv = { [0] = b->mv[0], [1] = b->mv[1] }});
         } else {
-            splat_oneref_mv(&t->rt, t->by, t->bx, bs, b->inter_mode,
+            splat_oneref_mv(&f->c->splat_dsp, &t->rt, t->by, t->bx, bs, b->inter_mode,
                             b->ref[0], b->mv[0], b->interintra_type);
         }
 

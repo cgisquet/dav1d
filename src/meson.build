@@ -175,6 +175,7 @@ if is_asm_enabled
         libdav1d_sources += files(
             'x86/cpu.c',
             'x86/msac_init.c',
+            'x86/refmvs_init.c',
         )
 
         libdav1d_tmpl_sources += files(
@@ -195,6 +196,7 @@ if is_asm_enabled
             'x86/itx_avx2.asm',
             'x86/looprestoration_avx2.asm',
             'x86/cdef_sse.asm',
+            'x86/refmvs.asm',
         )
 
         if dav1d_bitdepths.contains('8')

@@ -251,6 +251,22 @@ typedef union mv {
     uint32_t n;
 } mv;
 
+typedef union refmvs_refpair {
+    int8_t ref[2]; // [0] = 0: intra=1, [1] = -1: comp=0
+    uint16_t pair;
+} refmvs_refpair;
+
+typedef union refmvs_mvpair {
+    mv mv[2];
+    uint64_t n;
+} refmvs_mvpair;
+
+PACKED(typedef struct refmvs_block {
+    refmvs_mvpair mv;
+    refmvs_refpair ref;
+    uint8_t bs, mf; // 1 = globalmv+affine, 2 = newmv
+}) refmvs_block;
+
 enum MotionMode {
     MM_TRANSLATION,
     MM_OBMC,
